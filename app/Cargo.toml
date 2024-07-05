@@ -6,6 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# -- Utils
+derive_more = { version = "0.99.17", features = ["from"] }
 leptos.workspace = true
 leptos_meta.workspace = true
 leptos_router.workspace = true
@@ -20,3 +22,7 @@ default = []
 hydrate = ["leptos/hydrate", "leptos_meta/hydrate", "leptos_router/hydrate"]
 ssr = ["leptos/ssr", "leptos_meta/ssr", "leptos_router/ssr", "dep:leptos_axum"]
 
+[dev-dependencies]
+wasm-bindgen = "0.2.92"
+wasm-bindgen-test = "0.3.42"
+web-sys = "0.3.69"
