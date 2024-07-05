@@ -6,13 +6,11 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+# -- App (HTML)
 app = { path = "../app", default-features = false, features = ["hydrate"] }
-leptos = { workspace = true, features = [ "hydrate" ] }
-
-console_error_panic_hook.workspace = true
-console_log.workspace = true
-log.workspace = true
+# -- Leptos
+leptos = { workspace = true, features = ["hydrate"] }
+# -- WASM
+console_error_panic_hook = "0.1.7"
 wasm-bindgen.workspace = true

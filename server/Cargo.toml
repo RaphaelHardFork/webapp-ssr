@@ -3,16 +3,17 @@ name = "server"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+# -- App (HTML)
 app = { path = "../app", default-features = false, features = ["ssr"] }
-leptos = { workspace = true, features = [ "ssr" ]}
-leptos_axum.workspace = true
-
-axum.workspace = true
-simple_logger.workspace = true
-tokio.workspace = true
-tower.workspace = true
-tower-http.workspace = true
-log.workspace = true
+# -- Async
+tokio = { version = "1.38.0", features = ["full"] }
+# -- Leptos
+leptos = { workspace = true, features = ["ssr"] }
+leptos_axum = "0.6.12"
+# -- Web
+axum = { version = "0.7.5", features = ["macros"] }
+tower = { version = "0.4.13", features = ["full"] }
+tower-http = { version = "0.5", features = ["full"] }
+# -- Utils
+derive_more.workspace = true
