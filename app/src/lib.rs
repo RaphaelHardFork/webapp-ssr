@@ -13,7 +13,7 @@ pub fn App() -> impl IntoView {
     provide_meta_context();
 
     view! {
-        <Stylesheet id="leptos" href="/pkg/start-axum-workspace.css"/>
+        <Stylesheet id="leptos" href="/pkg/asset.css"/>
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
         <Title text="Client intranet"/>
         <Router fallback=|| pages::Page404.into_view()>
