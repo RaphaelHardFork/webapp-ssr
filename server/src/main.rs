@@ -3,12 +3,19 @@ use axum::Router;
 use fileserv::file_and_error_handler;
 use leptos::*;
 use leptos_axum::{generate_route_list, LeptosRoutes};
+use tracing::info;
+use tracing_subscriber::EnvFilter;
 
 pub mod fileserv;
 
 #[tokio::main]
 async fn main() {
-   
+    // create a global subscriber
+    tracing_subscriber::fmt()
+        .without_time() // only on local deployments
+        .with_target(false)
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
 
     // Setting get_configuration(None) means we'll be using cargo-leptos's env values
     // For deployment these variables are:
@@ -28,8 +35,9 @@ async fn main() {
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`
-    println!("listening on http://{}",&addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    info!("{:<12} - {:?}\n", "LISTENING", listener.local_addr());
+    println!("HELO");
     axum::serve(listener, app.into_make_service())
         .await
         .unwrap();

@@ -11,6 +11,9 @@ tokio = { version = "1.38.0", features = ["full"] }
 # -- Leptos
 leptos = { workspace = true, features = ["ssr"] }
 leptos_axum = "0.6.12"
+# -- Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # -- Web
 axum = { version = "0.7.5", features = ["macros"] }
 tower = { version = "0.4.13", features = ["full"] }

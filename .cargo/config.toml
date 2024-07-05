@@ -1,0 +1,5 @@
+# Env variables set for "cargo ..." cmd
+[env]
+
+# Scope down tracing, to filter out external lib tracing.
+RUST_LOG = "server=info"
