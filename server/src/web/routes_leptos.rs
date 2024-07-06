@@ -1,19 +1,18 @@
+use super::{Error, Result};
 use app::App;
+use axum::body::Body;
+use axum::extract::State;
+use axum::http::{Request, Response, StatusCode, Uri};
+use axum::response::IntoResponse;
 use axum::response::Response as AxumResponse;
 use axum::Router;
-use axum::{
-    body::Body,
-    extract::State,
-    http::{Request, Response, StatusCode, Uri},
-    response::IntoResponse,
-};
-use leptos::*;
+use leptos::{get_configuration, view, LeptosOptions};
 use leptos_axum::{generate_route_list, LeptosRoutes};
-use leptos_config::ConfFile;
+use std::net::SocketAddr;
 use tower::ServiceExt;
 use tower_http::services::ServeDir;
 
-pub async fn file_and_error_handler(
+async fn file_and_error_handler(
     uri: Uri,
     State(options): State<LeptosOptions>,
     req: Request<Body>,
@@ -30,34 +29,30 @@ pub async fn file_and_error_handler(
     }
 }
 
-async fn get_static_file(uri: Uri, root: &str) -> Result<Response<Body>, (StatusCode, String)> {
-    let req = Request::builder()
-        .uri(uri.clone())
-        .body(Body::empty())
-        .unwrap();
-    // `ServeDir` implements `tower::Service` so we can call it with `tower::ServiceExt::oneshot`
-    // This path is relative to the cargo root
+async fn get_static_file(uri: Uri, root: &str) -> Result<Response<Body>> {
+    let req = Request::builder().uri(uri.clone()).body(Body::empty())?;
+
     match ServeDir::new(root).oneshot(req).await {
         Ok(res) => Ok(res.map(Body::new)),
-        Err(err) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Something went wrong: {err}"),
-        )),
+        Err(_) => Err(Error::ServeDir),
     }
 }
 
-pub fn routes(config: ConfFile) -> Router {
-    // Setting get_configuration(None) means we'll be using cargo-leptos's env values
-    // For deployment these variables are:
-    // <https://github.com/leptos-rs/start-axum#executing-a-server-on-a-remote-machine-without-the-toolchain>
-    // Alternately a file can be specified such as Some("Cargo.toml")
-    // The file would need to be included with the executable when moved to deployment
-    let leptos_options = config.leptos_options;
+pub fn routes(leptos_options: LeptosOptions) -> Router {
+    // generate HTML routes
     let routes = generate_route_list(App);
 
-    // build our application with a route
+    // build router
     Router::new()
         .leptos_routes(&leptos_options, routes, App)
         .fallback(file_and_error_handler)
         .with_state(leptos_options)
+}
+
+pub async fn get_leptos_config() -> Result<(LeptosOptions, SocketAddr)> {
+    let config = get_configuration(None).await?;
+    let leptos_options = config.leptos_options;
+    let addr = leptos_options.site_addr;
+
+    Ok((leptos_options, addr))
 }

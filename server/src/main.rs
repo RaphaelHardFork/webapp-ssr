@@ -1,12 +1,12 @@
 mod web;
 
 use axum::Router;
-use leptos::get_configuration;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
+use web::Result;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     // create a global subscriber
     tracing_subscriber::fmt()
         .without_time() // only on local deployments
@@ -14,27 +14,28 @@ async fn main() {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    // FIXME: change the way config is get
-    // Setting get_configuration(None) means we'll be using cargo-leptos's env values
-    // For deployment these variables are:
-    // <https://github.com/leptos-rs/start-axum#executing-a-server-on-a-remote-machine-without-the-toolchain>
-    // Alternately a file can be specified such as Some("Cargo.toml")
-    // The file would need to be included with the executable when moved to deployment
-    let config = get_configuration(None).await.unwrap();
-    let leptos_options = &config.leptos_options;
-    let addr = leptos_options.site_addr;
+    // get leptos config
+    let (leptos_option, addr) = web::routes_leptos::get_leptos_config().await?;
 
-    // build our application with a route
+    // region:        --- Axum router
+
     let routes_all = Router::new()
-        .merge(web::routes_leptos::routes(config))
-        .merge(web::routes_api::routes()); // api test
+        .merge(web::routes_leptos::routes(leptos_option))
+        .merge(web::routes_api::routes());
 
-    // run our app with hyper
-    // `axum::Server` is a re-export of `hyper::Server`
+    // endregion:     --- Axum router
+
+    // region:        --- Start server
+
+    // Ok to `unwrap` errors here
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     info!("{:<12} - {:?}\n", "LISTENING", listener.local_addr());
     println!("HELO");
     axum::serve(listener, routes_all.into_make_service())
         .await
         .unwrap();
+
+    // endregion:     --- Start server
+
+    Ok(())
 }

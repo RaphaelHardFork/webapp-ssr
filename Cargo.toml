@@ -18,7 +18,7 @@ derive_more = { version = "0.99.17", features = ["from"] }
 
 # Leptos project configuration (ref: https://github.com/leptos-rs/cargo-leptos).
 [[workspace.metadata.leptos]]
-# project names
+# Leptos project configuration
 name = "webapp-ssr"
 bin-package = "server"
 lib-package = "client"
@@ -40,14 +40,12 @@ assets-dir = "public"
 site-addr = "127.0.0.1:8080"
 reload-port = 8081
 
-# [Optional] Command to use when running end2end tests. It will run in the end2end dir.
-#   [Windows] for non-WSL use "npx.cmd playwright test"
-#   This binary name can be checked in Powershell with Get-Command npx
+# End-to-end testing
 end2end-cmd = "npx playwright test"
 end2end-dir = "end2end"
 
-# Set by cargo-leptos watch when building with that tool. Controls whether autoreload JS will be included in the head
+# Watch mode
 watch = false
 
-# The environment Leptos will run in, usually either "DEV" or "PROD"
+# Environnement
 env = "DEV"

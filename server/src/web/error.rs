@@ -1,21 +1,21 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use derive_more::From;
-use serde::Serialize;
-use serde_with::{serde_as, DisplayFromStr};
 use std::sync::Arc;
 use tracing::debug;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-// Not useful, need to handle Leptos errors and wrong API fallback (500)
-
-#[serde_as]
-#[derive(Debug, From, Serialize, strum_macros::AsRefStr)]
-#[serde(tag = "type", content = "data")]
+#[allow(unused)]
+#[derive(Debug, From)]
 pub enum Error {
-    // -- External Modules
-    SerdeJson(#[serde_as(as = "DisplayFromStr")] Arc<serde_json::Error>),
+    ServeDir,
+
+    #[from]
+    AxumHttp(axum::http::Error),
+
+    #[from]
+    LeptosConfig(leptos::leptos_config::errors::LeptosConfigError),
 }
 
 // region:    --- Error Boilerplate
@@ -31,9 +31,10 @@ impl std::error::Error for Error {}
 // endregion: --- Error Boilerplate
 
 // region:    --- Axum IntoResponse
+
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        debug!("{:<12} - model::Error {self:?}", "INTO_RES");
+        debug!("{:<12} - web::Error {self:?}", "INTO_RES");
 
         // Create a placeholder Axum reponse.
         let mut response = StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -44,4 +45,5 @@ impl IntoResponse for Error {
         response
     }
 }
+
 // endregion: --- Axum IntoResponse

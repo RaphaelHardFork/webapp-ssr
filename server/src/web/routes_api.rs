@@ -1,5 +1,8 @@
 use super::Result;
-use axum::{routing::post, Json, Router};
+use axum::{
+    routing::{get, post},
+    Json, Router,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tracing::info;
@@ -11,14 +14,26 @@ pub struct RpcInfo {
 }
 
 pub fn routes() -> Router {
-    Router::new().route("/api/result", post(rpc_axum_handler))
+    Router::new()
+        .route("/api/result", post(post_handler_test))
+        .route("/api/res", get(get_handler_test))
 }
 
-async fn rpc_axum_handler(Json(rpc_info): Json<RpcInfo>) -> Result<Json<Value>> {
-    info!("{:<12} - api_login_handler", "HANDLER");
+async fn post_handler_test(Json(rpc_info): Json<RpcInfo>) -> Result<Json<Value>> {
+    info!("{:<12} - POST handler test", "HANDLER");
     let res = Json(json!({
         "id": rpc_info.id,
         "result": rpc_info.method
+    }));
+
+    Ok(res)
+}
+
+async fn get_handler_test() -> Result<Json<Value>> {
+    info!("{:<12} - GET handler test", "HANDLER");
+    let res = Json(json!({
+        "id": 200,
+        "result": "Test"
     }));
 
     Ok(res)
