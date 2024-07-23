@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["app", "client", "server"]
+members = ["app", "client", "libs/lib-utils", "server"]
 
 # need to be applied only to wasm build
 [profile.release]
@@ -9,6 +9,8 @@ lto = true
 opt-level = 'z'
 
 [workspace.dependencies]
+# -- Json
+serde = { version = "1", features = ["derive"] }
 # -- Leptos
 leptos = { version = "0.6.12" }
 # -- WASM
