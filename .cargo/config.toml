@@ -1,5 +1,4 @@
-# Env variables set for "cargo ..." cmd
+# Cargo leptos cannot read this file, workaround with `.env` & dotenv
 [env]
-
-# Scope down tracing, to filter out external lib tracing.
 RUST_LOG = "server=debug"
+SERVICE_DB_URL = ".data/database.db"
