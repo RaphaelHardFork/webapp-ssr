@@ -1,6 +1,5 @@
 mod config;
 mod error;
-mod model;
 mod web;
 
 pub use self::error::{Error, Result};
@@ -8,7 +7,7 @@ use config::config;
 
 use axum::Router;
 use dotenv::dotenv;
-use model::{user::create_user_table, ModelManager};
+use lib_core::model::{user::create_user_table, ModelManager};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 

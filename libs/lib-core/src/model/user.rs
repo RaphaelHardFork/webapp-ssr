@@ -28,7 +28,7 @@ pub async fn create_user_table(mm: ModelManager) -> Result<()> {
     .execute(&db)
     .await?;
 
-    debug!("{:<12} - User table created", "DATABASE");
+    debug!("{:<12} - User table initiated", "DATABASE");
 
     Ok(())
 }
@@ -46,10 +46,10 @@ pub async fn create_user(mm: ModelManager, email: &str, pwd: &str) -> Result<Opt
 
 pub async fn list_users(mm: ModelManager) -> Result<Vec<User>> {
     let db = mm.db;
-    println!("{:?}", "HEY");
+    debug!("HELLO");
     let users = sqlx::query_as::<_, User>("SELECT id, email, pwd FROM user")
         .fetch_all(&db)
         .await?;
-    println!("{:?}", users);
+
     Ok(users)
 }

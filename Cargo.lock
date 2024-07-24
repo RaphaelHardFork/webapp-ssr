@@ -1590,6 +1590,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "lib-core"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "lib-utils",
+ "serde",
+ "serde_with",
+ "sqlx",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "lib-utils"
 version = "0.1.0"
 dependencies = [
@@ -2532,11 +2545,11 @@ dependencies = [
  "dotenv",
  "leptos",
  "leptos_axum",
+ "lib-core",
  "lib-utils",
  "serde",
  "serde_json",
  "serde_with",
- "sqlx",
  "strum_macros",
  "tokio",
  "tower",

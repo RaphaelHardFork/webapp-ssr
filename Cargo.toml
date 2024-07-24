@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["app", "client", "libs/lib-utils", "server"]
+members = ["app", "client", "libs/lib-core", "libs/lib-utils", "server"]
 
 # need to be applied only to wasm build
 [profile.release]
@@ -11,8 +11,12 @@ opt-level = 'z'
 [workspace.dependencies]
 # -- Json
 serde = { version = "1", features = ["derive"] }
+serde_with = "3"
 # -- Leptos
 leptos = { version = "0.6.12" }
+# -- Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # -- WASM
 wasm-bindgen = "=0.2.92"
 # -- Utils

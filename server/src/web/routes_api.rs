@@ -1,12 +1,12 @@
 use super::Result;
-use crate::model::{
-    user::{create_user, list_users, UserForCreate},
-    ModelManager,
-};
 use axum::{
     extract::State,
     routing::{get, post},
     Json, Router,
+};
+use lib_core::model::{
+    user::{create_user, list_users, UserForCreate},
+    ModelManager,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};

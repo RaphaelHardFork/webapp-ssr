@@ -1,0 +1,23 @@
+[package]
+name = "lib-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# -- Libs
+lib-utils = { path = "../lib-utils" }
+# -- Data
+sqlx = { version = "0.8.0", features = [
+  "runtime-tokio",
+  "tls-rustls",
+  "sqlite",
+  "uuid",
+] }
+# -- Json
+serde.workspace = true
+serde_with.workspace = true
+# -- Tracing
+tracing.workspace = true
+tracing-subscriber.workspace = true
+# -- Utils
+derive_more.workspace = true

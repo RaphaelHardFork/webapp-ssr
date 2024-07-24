@@ -1,4 +1,3 @@
-use crate::model;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use derive_more::From;
@@ -13,7 +12,7 @@ pub enum Error {
     ServeDir,
 
     #[from]
-    Model(model::Error),
+    Model(lib_core::model::Error),
 
     #[from]
     AxumHttp(axum::http::Error),
