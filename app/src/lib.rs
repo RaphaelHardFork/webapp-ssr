@@ -1,6 +1,7 @@
 mod components;
 mod error;
 mod pages;
+mod utils;
 
 pub use error::{Error, Result};
 

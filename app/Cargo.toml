@@ -4,12 +4,19 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# -- Libs
+lib-core = { path = "../libs/lib-core", optional = true }
 # -- Leptos
 leptos.workspace = true
 leptos_meta = { version = "0.6.12", default-features = false }
 leptos_router = { version = "0.6.12" }
+leptos_axum = { workspace = true, optional = true }
+# -- Web
+axum = { workspace = true, optional = true }
+web-sys = "0.3.69"
 # -- Utils
 derive_more.workspace = true
+lazy-regex = "3.2.0"
 
 [features]
 default = []
@@ -18,10 +25,11 @@ ssr = [
   "leptos/ssr",
   "leptos_meta/ssr",
   "leptos_router/ssr",
-  # "dep:leptos_axum"
+  "lib-core",
+  "leptos_axum",
+  "axum",
 ]
 
 [dev-dependencies]
 wasm-bindgen.workspace = true
 wasm-bindgen-test = "0.3.42"
-web-sys = "0.3.69"

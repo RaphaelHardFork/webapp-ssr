@@ -1,24 +1,91 @@
 use crate::components::ErrorAlert;
+use crate::utils::validate_email;
 use crate::Error;
-use leptos::{component, create_signal, event_target_value, view, IntoView, SignalGet, SignalSet};
+use leptos::{component, create_action, create_effect, create_signal, event_target_value};
+use leptos::{server, spawn_local, ServerFnError};
+use leptos::{view, IntoView, Show, SignalGet, SignalSet};
 use leptos_router::Form;
+use web_sys::MouseEvent;
+
+#[server(AddUser, "/api", "Url", "hey")]
+async fn add_user(email: String, pwd: String) -> Result<Option<i64>, ServerFnError> {
+    use lib_core::model::user::create_user;
+    use lib_core::model::ModelManager;
+
+    let mm = ModelManager::new().await?; // TODO: use Axum State to retreive the MM
+    let id = create_user(mm.clone(), &email, &pwd).await?;
+
+    Ok(id)
+}
 
 #[component]
 pub fn LoginForm() -> impl IntoView {
+    // define signals (states)
     let (error, set_error) = create_signal::<Option<Error>>(None);
     let (email, set_email) = create_signal::<String>(String::new());
     let (pwd, set_pwd) = create_signal::<String>(String::new());
 
+    // derived signals
+    let empty_email = move || email.get().is_empty();
+    let empty_pwd = move || pwd.get().is_empty();
+    let valid_email = move || validate_email(&email.get());
+
+    // region:        --- Login action
+
+    // create action
+    let login_action = create_action(|input: &(String, String)| {
+        let (email, pwd) = input.clone();
+        async move { add_user(email, pwd).await }
+    });
+
+    // trigger action
+    let handle_login = move |_: MouseEvent| {
+        spawn_local(async move { login_action.dispatch((email.get(), pwd.get())) })
+    };
+
+    // react to action response
+    create_effect(move |_| {
+        if let Some(res) = login_action.value().get() {
+            match res {
+                Ok(id) => {
+                    if let Some(id) = id {
+                        set_error.set(Some(Error::ServerError { code: id }))
+                    } else {
+                        set_error.set(Some(Error::TryLater))
+                    }
+                }
+                Err(_) => set_error.set(Some(Error::TryLater)),
+            }
+        }
+    });
+
+    // endregion:     --- Login action
+
     view! {
         <div class="font-serif mx-auto bg-gray-300 rounded-md shadow-md w-2/4 p-3">
-            <ErrorAlert error=error/>
-            <Form action="" class="flex flex-col">
+            <Show
+                when=move || !login_action.pending().get()
+                fallback=|| {
+                    view! {
+                        <div class="bg-yellow-200 p-2 text-center rounded-md mb-4">Loading...</div>
+                    }
+                }
+            >
+
+                <ErrorAlert error=error/>
+            </Show>
+
+            <Form action="" class=" flex flex-col">
                 <div class="flex flex-col mb-3">
                     <label class="mb-2" for="email-input">
                         Email:
                     </label>
                     <input
-                        class="bg-white rounded-md h-8 p-2"
+                        class=move || match valid_email() {
+                            true => "bg-white rounded-md h-8 p-2",
+                            false => "bg-white rounded-md h-8 p-2 border-2 border-red-400",
+                        }
+
                         type="email"
                         placeholder="e@mail.com"
                         id="email-input"
@@ -43,16 +110,18 @@ pub fn LoginForm() -> impl IntoView {
                 </div>
                 <button
                     class=move || {
-                        if !email.get().is_empty() && !pwd.get().is_empty() {
+                        if !empty_email() && !empty_pwd() && valid_email() {
                             "mt-5 rounded-md h-8 bg-lime-300 hover:bg-lime-100"
                         } else {
                             "mt-5 rounded-md h-8 bg-gray-100"
                         }
                     }
-
                     // send info to SQLite
-                    on:click=move |_| { set_error.set(Some(Error::Unauthorized)) }
-                    disabled=move || email.get().is_empty() || pwd.get().is_empty()
+                    on:click=handle_login
+                    disabled=move || {
+                        empty_email() || empty_pwd()
+                            || !valid_email()
+                    }
                 >
                     Sign in
                 </button>

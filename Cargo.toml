@@ -14,9 +14,12 @@ serde = { version = "1", features = ["derive"] }
 serde_with = "3"
 # -- Leptos
 leptos = { version = "0.6.12" }
+leptos_axum = "0.6.12"
 # -- Tracing
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# -- Web
+axum = { version = "0.7.5", features = ["macros"] }
 # -- WASM
 wasm-bindgen = "=0.2.92"
 # -- Utils

@@ -4,7 +4,12 @@ pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, Clone, From)]
 pub enum Error {
+    ServerError { code: i64 },
+    TryLater,
     Unauthorized,
+
+    // -- Server
+    ServerFunctionError(leptos::ServerFnError),
 }
 
 // region:    --- Error Boilerplate

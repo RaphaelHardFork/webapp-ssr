@@ -1,7 +1,11 @@
+use std::{thread, time::Duration};
+
 use super::{ModelManager, Result};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use tracing::debug;
+
+// region:        --- Types
 
 #[derive(FromRow, Serialize, Debug)]
 pub struct User {
@@ -15,6 +19,8 @@ pub struct UserForCreate {
     pub email: String,
     pub pwd: String,
 }
+
+// endregion:     --- Types
 
 pub async fn create_user_table(mm: ModelManager) -> Result<()> {
     let db = mm.db;
@@ -34,6 +40,9 @@ pub async fn create_user_table(mm: ModelManager) -> Result<()> {
 }
 
 pub async fn create_user(mm: ModelManager, email: &str, pwd: &str) -> Result<Option<i64>> {
+    // wait 3s to simulate an error
+    thread::sleep(Duration::from_millis(3000));
+
     let db = mm.db;
     let res = sqlx::query("INSERT INTO user (email, pwd) VALUES (?1, ?2)")
         .bind(email)
