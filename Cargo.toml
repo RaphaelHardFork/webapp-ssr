@@ -1,3 +1,7 @@
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unused = "allow"       # for experimental dev
+
 [workspace]
 resolver = "2"
 members = ["app", "client", "libs/lib-core", "libs/lib-utils", "server"]
