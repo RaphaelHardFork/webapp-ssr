@@ -1,19 +1,24 @@
 use crate::components::ErrorAlert;
 use crate::utils::validate_email;
 use crate::Error;
-use leptos::{component, create_action, create_effect, create_signal, event_target_value};
+use leptos::logging::log;
+use leptos::{
+    component, create_action, create_effect, create_resource, create_signal, event_target_value,
+    expect_context, Suspense,
+};
 use leptos::{server, spawn_local, ServerFnError};
 use leptos::{view, IntoView, Show, SignalGet, SignalSet};
 use leptos_router::Form;
 use web_sys::MouseEvent;
 
-#[server(AddUser, "/api", "Url", "hey")]
+#[server]
 async fn add_user(email: String, pwd: String) -> Result<Option<i64>, ServerFnError> {
+    use lib_core::model::app_state::AppState;
     use lib_core::model::user::create_user;
-    use lib_core::model::ModelManager;
 
-    let mm = ModelManager::new().await?; // TODO: use Axum State to retreive the MM
-    let id = create_user(mm.clone(), &email, &pwd).await?;
+    let app_state: AppState = expect_context();
+
+    let id = create_user(app_state.mm.clone(), &email, &pwd).await?;
 
     Ok(id)
 }
@@ -116,13 +121,12 @@ pub fn LoginForm() -> impl IntoView {
                             "mt-5 rounded-md h-8 bg-gray-100"
                         }
                     }
+
                     // send info to SQLite
                     on:click=handle_login
-                    disabled=move || {
-                        empty_email() || empty_pwd()
-                            || !valid_email()
-                    }
+                    disabled=move || { empty_email() || empty_pwd() || !valid_email() }
                 >
+
                     Sign in
                 </button>
             </Form>

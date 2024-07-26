@@ -3,13 +3,21 @@ mod error;
 mod web;
 
 pub use self::error::{Error, Result};
-use config::config;
 
-use axum::Router;
+use axum::{
+    body::Body,
+    extract::{FromRef, Request, State},
+    middleware,
+    response::IntoResponse,
+    Router,
+};
 use dotenv::dotenv;
-use lib_core::model::{user::create_user_table, ModelManager};
-use tracing::info;
+use leptos::{provide_context, LeptosOptions};
+use leptos_axum::handle_server_fns_with_context;
+use lib_core::model::{app_state::AppState, user::create_user_table, ModelManager};
+use tracing::{debug, info};
 use tracing_subscriber::EnvFilter;
+use web::middleware::stamp::req_stamp;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -24,17 +32,17 @@ async fn main() -> Result<()> {
         .init();
 
     // get leptos config
-    let (leptos_option, addr) = web::routes_leptos::get_leptos_config().await?;
+    let (leptos_options, addr) = web::routes_leptos::get_leptos_config().await?;
 
-    // Create MM (Database)
-    let mm = ModelManager::new().await?;
-    create_user_table(mm.clone()).await?;
+    // Create AppState
+    let app_state = AppState::new(leptos_options).await?;
 
     // region:        --- Axum router
 
     let routes_all = Router::new()
-        .merge(web::routes_leptos::routes(leptos_option))
-        .merge(web::routes_api::routes(mm.clone()));
+        .merge(web::routes_leptos::routes(app_state.clone()))
+        .merge(web::routes_api::routes(app_state.mm.clone()))
+        .layer(middleware::map_request(req_stamp));
 
     // endregion:     --- Axum router
 

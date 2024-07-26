@@ -1,12 +1,13 @@
 mod error;
 pub mod store;
 pub mod user;
+pub mod app_state;
 
 use store::{new_db_pool, Db};
 
 pub use self::error::{Error, Result};
 
-#[derive(Clone)]
+#[derive(Debug,Clone)]
 pub struct ModelManager {
     db: Db,
 }

@@ -19,8 +19,12 @@ sqlx = { version = "0.8.0", features = [
 # -- Json
 serde.workspace = true
 serde_with.workspace = true
+# -- Leptos
+leptos.workspace = true
 # -- Tracing
 tracing.workspace = true
 tracing-subscriber.workspace = true
+# -- Web
+axum.workspace = true
 # -- Utils
 derive_more.workspace = true

@@ -1,4 +1,5 @@
 mod error;
+pub mod middleware;
 pub mod routes_api;
 pub mod routes_leptos;
 

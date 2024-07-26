@@ -11,7 +11,7 @@ pub enum Error {
 
     // -- Externals
     #[from]
-    Model(lib_core::model::Error),
+    Core(lib_core::Error),
 }
 
 // region:    --- Error Boilerplate
