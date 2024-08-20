@@ -39,7 +39,7 @@ pub async fn create_user_table(mm: ModelManager) -> Result<()> {
     Ok(())
 }
 
-pub async fn create_user(mm: ModelManager, email: &str, pwd: &str) -> Result<Option<i64>> {
+pub async fn create_user(mm: ModelManager, email: &str, pwd: &str) -> Result<i64> {
     // wait 3s to simulate an error
     thread::sleep(Duration::from_millis(3000));
 
@@ -50,7 +50,7 @@ pub async fn create_user(mm: ModelManager, email: &str, pwd: &str) -> Result<Opt
         .execute(&db)
         .await?;
 
-    Ok(Some(res.last_insert_rowid()))
+    Ok(res.last_insert_rowid())
 }
 
 pub async fn list_users(mm: ModelManager) -> Result<Vec<User>> {

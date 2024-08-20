@@ -17,7 +17,7 @@ use leptos_axum::handle_server_fns_with_context;
 use lib_core::model::{app_state::AppState, user::create_user_table, ModelManager};
 use tracing::{debug, info};
 use tracing_subscriber::EnvFilter;
-use web::middleware::stamp::req_stamp;
+use web::middleware::{response_map::response_map_mw, stamp::req_stamp};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -42,6 +42,7 @@ async fn main() -> Result<()> {
     let routes_all = Router::new()
         .merge(web::routes_leptos::routes(app_state.clone()))
         .merge(web::routes_api::routes(app_state.mm.clone()))
+        .layer(middleware::map_response(response_map_mw))
         .layer(middleware::map_request(req_stamp));
 
     // endregion:     --- Axum router
@@ -50,7 +51,11 @@ async fn main() -> Result<()> {
 
     // Ok to `unwrap` errors here
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    info!("{:<12} - {:?}\n", "LISTENING", listener.local_addr());
+    info!(
+        "{:<12} - http://localhost:{}\n",
+        "LISTENING ON",
+        addr.port()
+    );
     axum::serve(listener, routes_all.into_make_service())
         .await
         .unwrap();

@@ -9,6 +9,9 @@ workspace = true
 [dependencies]
 # -- Libs
 lib-core = { path = "../libs/lib-core", optional = true }
+# -- Json
+serde.workspace = true
+serde_json = "1"
 # -- Leptos
 leptos.workspace = true
 leptos_meta = { version = "0.6.12", default-features = false }

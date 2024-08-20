@@ -11,6 +11,7 @@ use axum::response::Response as AxumResponse;
 use axum::routing::get;
 use axum::{Json, Router};
 
+use leptos::server_fn::middleware;
 use leptos::{get_configuration, provide_context, view, LeptosOptions};
 use leptos_axum::{generate_route_list, handle_server_fns_with_context, LeptosRoutes};
 use serde_json::{json, Value};
@@ -39,7 +40,10 @@ async fn file_and_error_handler(
 }
 
 async fn get_static_file(uri: Uri, root: &str) -> Result<Response<Body>> {
-    let req = Request::builder().uri(uri.clone()).body(Body::empty())?;
+    let req = Request::builder()
+        .uri(uri.clone())
+        .body(Body::empty())
+        .map_err(|e| Error::BuildAxumRequest(e.to_string()))?;
 
     match ServeDir::new(root).oneshot(req).await {
         Ok(res) => Ok(res.map(Body::new)),
@@ -55,7 +59,7 @@ async fn server_fns_handler(
     State(app_state): State<AppState>,
     req: Request<Body>,
 ) -> impl IntoResponse {
-    debug!("{:<12} - add app state context", "HANDLER");
+    debug!("{:<12} - {} {}", "SERVER FN", req.method(), req.uri());
 
     handle_server_fns_with_context(
         move || {
@@ -70,6 +74,8 @@ pub async fn leptos_routes_handler(
     State(app_state): State<AppState>,
     req: Request<Body>,
 ) -> AxumResponse {
+    debug!("{:<12} - {} {}", "BROWSER REQ", req.method(), req.uri());
+
     let handler = leptos_axum::render_app_to_stream_with_context(
         app_state.leptos_options.clone(),
         move || provide_context(app_state.clone()),
@@ -96,7 +102,9 @@ pub fn routes(app_state: AppState) -> Router {
 }
 
 pub async fn get_leptos_config() -> Result<(LeptosOptions, SocketAddr)> {
-    let config = get_configuration(None).await?;
+    let config = get_configuration(None)
+        .await
+        .map_err(|e| Error::GetLeptosConfig(e.to_string()))?;
     let leptos_options = config.leptos_options;
     let addr = leptos_options.site_addr;
 

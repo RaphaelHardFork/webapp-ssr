@@ -1,24 +1,22 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use derive_more::From;
+use serde::Serialize;
+use serde_with::{serde_as, DisplayFromStr};
 use std::sync::Arc;
 use tracing::debug;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[allow(unused)]
-#[derive(Debug, From)]
+#[derive(Debug, From, Serialize)]
 pub enum Error {
     ServeDir,
+    BuildAxumRequest(String),
+    GetLeptosConfig(String),
 
     #[from]
     Model(lib_core::model::Error),
-
-    #[from]
-    AxumHttp(axum::http::Error),
-
-    #[from]
-    LeptosConfig(leptos::leptos_config::errors::LeptosConfigError),
 }
 
 // region:    --- Error Boilerplate
@@ -50,3 +48,30 @@ impl IntoResponse for Error {
 }
 
 // endregion: --- Axum IntoResponse
+
+// region:        --- Client Error
+
+#[serde_as]
+#[derive(Debug, Serialize)]
+#[serde(tag = "message", content = "detail")]
+#[allow(non_camel_case_types)]
+pub enum ClientError {
+    SERVICE_ERROR,
+}
+
+impl Error {
+    pub fn client_status_and_error(&self) -> (StatusCode, ClientError) {
+        use Error::*;
+
+        #[allow(unreachable_patterns)]
+        match self {
+            // fallback
+            _ => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ClientError::SERVICE_ERROR,
+            ),
+        }
+    }
+}
+
+// endregion:     --- Client Error

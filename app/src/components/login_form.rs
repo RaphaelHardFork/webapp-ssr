@@ -1,4 +1,6 @@
 use crate::components::ErrorAlert;
+use crate::server_fns::error::serialize_error_response;
+use crate::server_fns::{ServerError, ServerResult};
 use crate::utils::validate_email;
 use crate::Error;
 use leptos::logging::log;
@@ -9,18 +11,61 @@ use leptos::{
 use leptos::{server, spawn_local, ServerFnError};
 use leptos::{view, IntoView, Show, SignalGet, SignalSet};
 use leptos_router::Form;
+use serde_json::{json, Value};
 use web_sys::MouseEvent;
 
 #[server]
-async fn add_user(email: String, pwd: String) -> Result<Option<i64>, ServerFnError> {
+async fn add_user(email: String, pwd: String) -> Result<Value, ServerFnError<ServerError>> {
+    use axum::http::header::CONTENT_TYPE;
+    use axum::http::HeaderValue;
+    use axum::http::StatusCode;
+    use leptos_axum::ResponseOptions;
     use lib_core::model::app_state::AppState;
     use lib_core::model::user::create_user;
 
     let app_state: AppState = expect_context();
+    let res: ResponseOptions = expect_context();
+    // useless?
+    // res.insert_header(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
-    let id = create_user(app_state.mm.clone(), &email, &pwd).await?;
+    match create_user(app_state.mm.clone(), &email, &pwd).await {
+        Ok(id) => {
+            res.set_status(StatusCode::NOT_FOUND);
+            Ok(serialize_error_response(ServerFnError::WrappedServerError(
+                ServerError::CannotLogin { code: id },
+            )))
+        }
+        Err(_) => {
+            res.set_status(StatusCode::SERVICE_UNAVAILABLE);
+            Ok(json!({
+              "error":{
+                "message":"Try again",
+              }
+            }))
+            // Ok(serialize_error_response(ServerFnError::WrappedServerError(
+            //     ServerError::TryAgain,
+            // )))
+        }
+    }
 
-    Ok(id)
+    // match create_user(app_state.mm.clone(), &email, &pwd).await {
+    //     Ok(id) => Ok(id),
+    //     Err(e) => {
+    //         let res: ResponseOptions = expect_context();
+    //         res.set_status(StatusCode::INTERNAL_SERVER_ERROR);
+    //         res.insert_header(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    //         Ok(None)
+    //     }
+    // }
+
+    // let res: ResponseOptions = expect_context();
+    // res.set_status(StatusCode::IM_A_TEAPOT);
+
+    // let id = create_user(app_state.mm.clone(), &email, &pwd)
+    //     .await
+    //     .map_err(|e| Error::ServerFunctionError(e.to_string()))?;
+
+    // Ok(id)
 }
 
 #[component]
@@ -51,18 +96,42 @@ pub fn LoginForm() -> impl IntoView {
     // react to action response
     create_effect(move |_| {
         if let Some(res) = login_action.value().get() {
+            log!("{:?}", res);
             match res {
-                Ok(id) => {
-                    if let Some(id) = id {
-                        set_error.set(Some(Error::ServerError { code: id }))
-                    } else {
-                        set_error.set(Some(Error::TryLater))
-                    }
+                Ok(value) => {
+                    set_error.set(Some(Error::TryLater));
+                    // if let Some(code) = value
+                    //     .get("error")
+                    //     .unwrap()
+                    //     .get("code")
+                    //     .unwrap()
+                    //     .as_number()
+                    //     .unwrap()
+                    //     .as_i64()
+                    // {
+                    //     set_error.set(Some(Error::ServerError { code }))
+                    // } else {
+                    //     set_error.set(Some(Error::TryLater))
+                    // }
                 }
-                Err(_) => set_error.set(Some(Error::TryLater)),
+                Err(e) => set_error.set(Some(Error::ServerFunctionError(e.to_string()))),
             }
         }
     });
+    // create_effect(move |_| {
+    //     if let Some(res) = login_action.value().get() {
+    //         match res {
+    //             Ok(id) => {
+    //                 if let Some(id) = id {
+    //                     set_error.set(Some(Error::ServerError { code: id }))
+    //                 } else {
+    //                     set_error.set(Some(Error::TryLater))
+    //                 }
+    //             }
+    //             Err(_) => set_error.set(Some(Error::TryLater)),
+    //         }
+    //     }
+    // });
 
     // endregion:     --- Login action
 
