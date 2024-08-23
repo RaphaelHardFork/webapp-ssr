@@ -1,4 +1,5 @@
 mod error;
+pub mod session;
 
 pub use self::error::{Error, Result};
 
