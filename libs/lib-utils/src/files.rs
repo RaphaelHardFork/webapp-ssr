@@ -37,4 +37,12 @@ pub fn create_file(filename: &Path) -> Result<bool> {
     }
 }
 
+pub fn delete_file(filename: &Path) -> Result<()> {
+    if filename.exists() {
+        fs::remove_file(filename).map_err(|ex| Error::CannotRemoveFile(ex.to_string()))?;
+    }
+
+    Ok(())
+}
+
 // endregion:     --- Files

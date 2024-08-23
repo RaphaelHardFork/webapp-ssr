@@ -11,6 +11,7 @@ pub enum Error {
     // -- Files
     CannotCreateDir(String),
     CannotCreateFile(String),
+    CannotRemoveFile(String),
     ImpossiblePath(String),
 }
 
