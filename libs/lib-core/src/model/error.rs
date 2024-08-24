@@ -3,19 +3,46 @@ use derive_more::From;
 use serde::Serialize;
 use serde_with::{serde_as, DisplayFromStr};
 
+use crate::database;
+
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[serde_as]
 #[derive(Debug, Serialize, From)]
 pub enum Error {
-    // Store
-    FailToCreatePool(String),
+    // Controller
+    EmptyField {
+        field: &'static str,
+    },
+    WrongEmailFormat,
 
-    // Lib-utils
+    EntityNotFound {
+        entity: &'static str,
+        id: i64,
+    },
+    WrongUuidFormat {
+        uuid: String,
+    },
+    UuidParsingFail(String),
+
+    // Session
+    NoAuthToken,
+
+    // Database
+    #[from]
+    SQLiteConnection(database::Error),
+
+    // Libs
     #[from]
     Utils(lib_utils::Error),
+    #[from]
+    Pwd(lib_auth::pwd::Error),
+    #[from]
+    Token(lib_auth::token::Error),
 
     // Externals
+    #[from]
+    SeaQuery(#[serde_as(as = "DisplayFromStr")] sea_query::error::Error),
     #[from]
     Sqlx(#[serde_as(as = "DisplayFromStr")] sqlx::Error),
 }

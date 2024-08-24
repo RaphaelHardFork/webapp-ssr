@@ -6,15 +6,31 @@ use serde_with::{serde_as, DisplayFromStr};
 use std::sync::Arc;
 use tracing::debug;
 
+use super::middleware::auth::CtxExtError;
+
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[allow(unused)]
 #[derive(Debug, From, Serialize)]
 pub enum Error {
+    // Login
+    EmptyLoginPayload,
+    UserNotFound {
+        identifier: String,
+    },
+    WrongPwd,
+    SessionNotFound {
+        token: String,
+    },
+    CannotSetCookie,
+    CannotRemoveCookie,
+
     ServeDir,
     BuildAxumRequest(String),
     GetLeptosConfig(String),
 
+    #[from]
+    CtxExt(CtxExtError),
     #[from]
     Model(lib_core::model::Error),
 }

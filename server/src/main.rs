@@ -12,12 +12,17 @@ use axum::{
     Router,
 };
 use dotenv::dotenv;
-use leptos::{provide_context, LeptosOptions};
+use leptos::{leptos_config::Env, provide_context, LeptosOptions};
 use leptos_axum::handle_server_fns_with_context;
-use lib_core::model::{app_state::AppState, user::create_user_table, ModelManager};
+use lib_core::model::{user::create_user_table, AppState, ModelManager};
+use tower_cookies::CookieManagerLayer;
 use tracing::{debug, info};
 use tracing_subscriber::EnvFilter;
-use web::middleware::{response_map::response_map_mw, stamp::req_stamp};
+use web::middleware::{
+    auth::{ctx_require, ctx_resolver},
+    response_map::response_map_mw,
+    stamp::req_stamp,
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -34,16 +39,29 @@ async fn main() -> Result<()> {
     // get leptos config
     let (leptos_options, addr) = web::routes_leptos::get_leptos_config().await?;
 
-    // Create AppState
-    let app_state = AppState::new(leptos_options).await?;
+    // Create AppState with dev/prod database
+    let app_state = match leptos_options.env {
+        Env::PROD => AppState::new(leptos_options).await?,
+        Env::DEV => AppState::new(leptos_options).await?, // will change to a new DB
+    };
 
     // region:        --- Axum router
 
+    let auth_routes =
+        web::routes_api::routes(app_state.mm.clone()).route_layer(middleware::from_fn(ctx_require));
+
     let routes_all = Router::new()
         .merge(web::routes_leptos::routes(app_state.clone()))
-        .merge(web::routes_api::routes(app_state.mm.clone()))
+        // API side
+        .nest("/auth", auth_routes)
+        .merge(web::routes_login::routes(app_state.mm.clone()))
+        // middleware and states
+        .layer(middleware::from_fn_with_state(app_state.mm.clone(), ctx_resolver))
         .layer(middleware::map_response(response_map_mw))
-        .layer(middleware::map_request(req_stamp));
+        .layer(middleware::map_request(req_stamp))
+        .layer(CookieManagerLayer::new())
+        // rest of the router
+        ;
 
     // endregion:     --- Axum router
 
