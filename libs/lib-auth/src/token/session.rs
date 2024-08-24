@@ -9,10 +9,11 @@ use crate::config::auth_config;
 
 use super::{Error, Result};
 
+#[derive(Debug, Clone)]
 pub struct SessionToken {
-    salt: Uuid,
-    privileged: bool,
-    signature: String,
+    pub salt: Uuid,
+    pub privileged: bool,
+    pub signature: String,
 }
 
 impl FromStr for SessionToken {
