@@ -1,0 +1,13 @@
+[package]
+name = "lib-web"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lib-utils = { path = "../lib-utils" }
+lib-core = { path = "../lib-core" }
+tower-cookies = "0.10.0"
+derive_more.workspace = true
+
+[lints]
+workspace = true
