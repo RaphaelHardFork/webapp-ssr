@@ -1,18 +1,17 @@
+use super::scheme;
+use derive_more::From;
 use serde::Serialize;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, From)]
 pub enum Error {
-    // -- Envs
-    MissingEnv(&'static str),
-    WrongEnvFormat(&'static str),
+    PwdWithSchemeFailedParse,
+    FailSpawnBlockForValidate,
+    FailSpawnBlockForHash,
 
-    // -- Files
-    CannotCreateDir(String),
-    CannotCreateFile(String),
-    CannotRemoveFile(String),
-    ImpossiblePath(String),
+    #[from]
+    Scheme(scheme::Error),
 }
 
 // region:    --- Error Boilerplate

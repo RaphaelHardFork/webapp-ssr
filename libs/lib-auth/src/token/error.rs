@@ -4,15 +4,14 @@ pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, Serialize)]
 pub enum Error {
-    // -- Envs
-    MissingEnv(&'static str),
-    WrongEnvFormat(&'static str),
-
-    // -- Files
-    CannotCreateDir(String),
-    CannotCreateFile(String),
-    CannotRemoveFile(String),
-    ImpossiblePath(String),
+    HmacFailNewFromSlice,
+    CannotParseUuid,
+    InvalidFormat,
+    CannotDecodeIdent,
+    CannotDecodeExp,
+    SignatureNotMatching,
+    ExpNotIso,
+    Expired,
 }
 
 // region:    --- Error Boilerplate
