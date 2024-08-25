@@ -1,20 +1,15 @@
-use crate::web;
 use derive_more::From;
-use lib_core::model;
+use serde::Serialize;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-#[derive(Debug, From)]
+#[derive(Debug, From, Serialize)]
 pub enum Error {
-    // -- Modules
-    #[from]
-    Web(web::Error),
+    FailToCreatePool(String),
 
-    // -- Externals
+    // Libs
     #[from]
-    Model(model::Error),
-    #[from]
-    Core(lib_core::Error),
+    Utils(lib_utils::Error),
 }
 
 // region:    --- Error Boilerplate

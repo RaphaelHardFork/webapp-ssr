@@ -20,15 +20,21 @@ async fn add_user(email: String, pwd: String) -> Result<Value, ServerFnError<Ser
     use axum::http::HeaderValue;
     use axum::http::StatusCode;
     use leptos_axum::ResponseOptions;
-    use lib_core::model::app_state::AppState;
-    use lib_core::model::user::create_user;
+    use lib_core::model::user::UserBmc;
+    use lib_core::model::user::UserForCreate;
+    use lib_core::model::AppState;
 
     let app_state: AppState = expect_context();
     let res: ResponseOptions = expect_context();
     // useless?
     // res.insert_header(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    let user_c = UserForCreate {
+        email,
+        pwd,
+        username: "not defined yet".to_string(),
+    };
 
-    match create_user(app_state.mm.clone(), &email, &pwd).await {
+    match UserBmc::create(&app_state.mm, user_c).await {
         Ok(id) => {
             res.set_status(StatusCode::NOT_FOUND);
             Ok(serialize_error_response(ServerFnError::WrappedServerError(
