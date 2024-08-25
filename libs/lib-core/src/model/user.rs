@@ -49,8 +49,8 @@ struct UserForInsert {
 #[derive(Clone, FromRow, Debug, Fields)]
 pub struct UserForLogin {
     pub id: i64,
-    pub username: Option<String>,
-    pub email: Option<String>,
+    pub username: String,
+    pub email: String,
 
     pub pwd: String, // encrypted => #_scheme_id_#...
     pub pwd_salt: UuidStr,

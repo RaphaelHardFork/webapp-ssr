@@ -4,10 +4,13 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use lib_auth::pwd::{validate_pwd, ContentToHash, SchemeStatus};
+use lib_auth::{
+    pwd::{validate_pwd, ContentToHash, SchemeStatus},
+    token::generate_web_token,
+};
 use lib_core::model::{
     session::{Session, SessionBmc, SessionForAuth, SessionForCreate, SessionType},
-    user::{UserBmc, UserForCreate, UserForLogin},
+    user::{User, UserBmc, UserForCreate, UserForLogin},
     ModelManager,
 };
 use lib_utils::time::format_time;
@@ -21,6 +24,7 @@ pub fn routes(mm: ModelManager) -> Router {
     Router::new()
         .route("/api/login", post(login_handler))
         .route("/api/logout", post(logout_handler))
+        .route("/api/register", post(register_handler))
         .with_state(mm)
 }
 
@@ -116,17 +120,19 @@ async fn login_handler(
 
 // endregion:	=== Login ===
 
+// region:		=== Logout ===
+
 #[derive(Debug, Deserialize)]
-pub struct LogoffPayload {
+pub struct LogoutPayload {
     pub logout: bool,
 }
 
 pub async fn logout_handler(
     State(mm): State<ModelManager>,
     cookies: Cookies,
-    Json(payload): Json<LogoffPayload>,
+    Json(payload): Json<LogoutPayload>,
 ) -> Result<Json<Value>> {
-    debug!("{:<12} - api_logoff_handler", "HANDLER");
+    debug!("{:<12} - api_logout_handler", "HANDLER");
     let should_logoff = payload.logout;
 
     if should_logoff {
@@ -135,9 +141,38 @@ pub async fn logout_handler(
 
     let body = Json(json!({
         "result": {
-            "logged_off": should_logoff
+            "logged_out": should_logoff
         }
     }));
 
     Ok(body)
 }
+
+// endregion:	=== Logout ===
+
+// region:		=== Register ===
+
+pub async fn register_handler(
+    State(mm): State<ModelManager>,
+    Json(user_c): Json<UserForCreate>,
+) -> Result<Json<Value>> {
+    user_c.validate()?;
+
+    let user_id = UserBmc::create(&mm, user_c).await?;
+    let user: UserForLogin = UserBmc::get(&mm, user_id).await?;
+
+    let web_token = generate_web_token(&user.email, user.token_salt()?)?;
+    debug!("{:<12} - Email validation: {:#}", "REGISTER", web_token);
+    debug!("{:<12} - Email validation: {:?}", "REGISTER", web_token);
+
+    let body = Json(json!({
+        "result":{
+            "Register success": true,
+            "Next step":"Check your email"
+        }
+    }));
+
+    Ok(body)
+}
+
+// endregion:	=== Register ===

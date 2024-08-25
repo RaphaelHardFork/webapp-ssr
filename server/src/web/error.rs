@@ -24,6 +24,7 @@ pub enum Error {
     },
     CannotSetCookie,
     CannotRemoveCookie,
+    EmptyField,
 
     ServeDir,
     BuildAxumRequest(String),
@@ -31,6 +32,8 @@ pub enum Error {
 
     #[from]
     CtxExt(CtxExtError),
+    #[from]
+    WebToken(lib_auth::token::Error),
     #[from]
     Model(lib_core::model::Error),
 }
