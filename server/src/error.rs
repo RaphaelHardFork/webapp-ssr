@@ -9,6 +9,8 @@ pub enum Error {
     // -- Modules
     #[from]
     Web(web::Error),
+    #[from]
+    LibWeb(lib_web::Error),
 
     // -- Externals
     #[from]

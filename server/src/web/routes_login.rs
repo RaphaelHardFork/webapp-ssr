@@ -92,13 +92,9 @@ async fn login_handler(
         id,
         user_id,
         token,
-        session_type,
+        privileged: session_type,
         expiration,
-    } = SessionBmc::get(&mm, &session_token)
-        .await?
-        .ok_or(Error::SessionNotFound {
-            token: session_token.clone(),
-        })?;
+    } = SessionBmc::get(&mm, &session_token).await?;
 
     // Add token in cookies
     set_session_cookie(

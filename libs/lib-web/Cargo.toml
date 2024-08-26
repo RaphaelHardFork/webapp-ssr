@@ -4,9 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# -- Libs
 lib-utils = { path = "../lib-utils" }
 lib-core = { path = "../lib-core" }
+# -- Leptos
+leptos = { workspace = true, features = ["ssr"] }
+# -- Web
+axum.workspace = true
 tower-cookies = "0.10.0"
+# -- Utils
 derive_more.workspace = true
 
 [lints]

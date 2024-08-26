@@ -9,7 +9,8 @@ members = [
     "client",
     "libs/lib-auth",
     "libs/lib-core",
-    "libs/lib-utils", "libs/lib-web",
+    "libs/lib-utils",
+    "libs/lib-web",
     "server",
 ]
 

@@ -11,18 +11,19 @@ use leptos::{
 use leptos::{server, spawn_local, ServerFnError};
 use leptos::{view, IntoView, Show, SignalGet, SignalSet};
 use leptos_router::Form;
+
 use serde_json::{json, Value};
 use web_sys::MouseEvent;
 
 #[server]
-async fn add_user(email: String, pwd: String) -> Result<Value, ServerFnError<ServerError>> {
+async fn add_user(email: String, pwd_clear: String) -> Result<Value, ServerFnError<ServerError>> {
     use axum::http::header::CONTENT_TYPE;
     use axum::http::HeaderValue;
     use axum::http::StatusCode;
     use leptos_axum::ResponseOptions;
     use lib_core::model::user::UserBmc;
     use lib_core::model::user::UserForCreate;
-    use lib_core::model::AppState;
+    use lib_web::app_state::AppState;
 
     let app_state: AppState = expect_context();
     let res: ResponseOptions = expect_context();
@@ -30,7 +31,7 @@ async fn add_user(email: String, pwd: String) -> Result<Value, ServerFnError<Ser
     // res.insert_header(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     let user_c = UserForCreate {
         email,
-        pwd,
+        pwd_clear,
         username: "not defined yet".to_string(),
     };
 

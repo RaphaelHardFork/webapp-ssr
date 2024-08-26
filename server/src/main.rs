@@ -14,7 +14,8 @@ use axum::{
 use dotenv::dotenv;
 use leptos::{leptos_config::Env, provide_context, LeptosOptions};
 use leptos_axum::handle_server_fns_with_context;
-use lib_core::model::{user::create_user_table, AppState, ModelManager};
+use lib_core::model::{user::create_user_table, ModelManager};
+use lib_web::app_state::AppState;
 use tower_cookies::CookieManagerLayer;
 use tracing::{debug, info};
 use tracing_subscriber::EnvFilter;

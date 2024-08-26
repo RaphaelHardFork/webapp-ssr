@@ -70,8 +70,7 @@ async fn _resolve_ctx(mm: State<ModelManager>, cookies: &Cookies) -> CtxExtResul
     // "repository" folder, not in entities.
     let session = SessionBmc::get(&mm, &session_token_str)
         .await
-        .map_err(|ex| CtxExtError::ModelAccessError(ex.to_string()))?
-        .ok_or(CtxExtError::SessionNotFound)?;
+        .map_err(|ex| CtxExtError::ModelAccessError(ex.to_string()))?;
     let user: UserForAuth = UserBmc::get(&mm, session.user_id)
         .await
         .map_err(|_| CtxExtError::UserNotFound)?;
@@ -95,7 +94,7 @@ async fn _resolve_ctx(mm: State<ModelManager>, cookies: &Cookies) -> CtxExtResul
     let session_auth = SessionForAuth {
         token: session_token_str,
         session_type: session_token.privileged,
-        expiration: format_time(expiration),
+        expiration,
     };
     set_session_cookie(&cookies, session_auth).map_err(|_| CtxExtError::CannotSetInCookie)?;
 
