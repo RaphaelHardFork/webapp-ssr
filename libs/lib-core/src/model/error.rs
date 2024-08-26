@@ -24,6 +24,9 @@ pub enum Error {
         uuid: String,
     },
     UuidParsingFail(String),
+    IdentifierNotFound {
+        identifier: String,
+    },
 
     // Session
     NoAuthToken,

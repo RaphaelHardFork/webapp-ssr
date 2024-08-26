@@ -14,7 +14,10 @@ use lazy_regex::regex_is_match;
 use lib_auth::pwd::{self, ContentToHash};
 use lib_utils::time::now_utc;
 use modql::field::{Field, Fields, HasFields};
-use sea_query::{ColumnDef, Cond, Expr, Iden, LogicalChainOper, Query, SqliteQueryBuilder, Table};
+use sea_query::{
+    ColumnDef, Cond, Expr, Iden, LogicalChainOper, Query, SimpleExpr, SqliteQueryBuilder, Table,
+    Value,
+};
 use sea_query_binder::SqlxBinder;
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqliteRow, FromRow};
@@ -51,6 +54,7 @@ pub struct UserForLogin {
     pub id: i64,
     pub username: String,
     pub email: String,
+    pub valid_email: bool,
 
     pub pwd: String, // encrypted => #_scheme_id_#...
     pub pwd_salt: UuidStr,
@@ -114,6 +118,7 @@ pub enum UserIden {
     // info
     Username,
     Email,
+    ValidEmail,
     // auth
     Pwd,
     PwdSalt,
@@ -148,6 +153,11 @@ pub async fn create_user_table(mm: &ModelManager) -> Result<()> {
                 .string_len(128)
                 .not_null()
                 .unique_key(),
+        )
+        .col(
+            ColumnDef::new(UserIden::ValidEmail)
+                .boolean()
+                .default(false),
         )
         // auth
         .col(ColumnDef::new(UserIden::Pwd).string_len(256))
@@ -351,6 +361,34 @@ impl UserBmc {
         // Execute query
         let _count = sqlx::query_with(&sql, values).execute(mm.db()).await?;
         // check if new pwd salt is generated ?
+
+        Ok(())
+    }
+
+    pub async fn validate_email(mm: &ModelManager, user_email: &str) -> Result<()> {
+        let user: User = Self::first_by_identifier(&mm, &user_email).await?.ok_or(
+            Error::IdentifierNotFound {
+                identifier: user_email.to_string(),
+            },
+        )?;
+
+        // TODO: already validated
+
+        let mut fields = Fields::new(vec![Field::new(
+            UserIden::ValidEmail,
+            Value::Bool(Some(true)).into(),
+        )]);
+        add_timestamps_for_update(&mut fields, user.id);
+        let fields = fields.for_sea_update();
+
+        let mut query = Query::update();
+        query
+            .table(UserIden::Table)
+            .values(fields)
+            .and_where(Expr::col(CommonIden::Id).eq(user.id));
+        let (sql, values) = query.build_sqlx(SqliteQueryBuilder);
+
+        let _count = sqlx::query_with(&sql, values).execute(mm.db()).await?;
 
         Ok(())
     }

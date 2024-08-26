@@ -1,12 +1,12 @@
 use super::{Error, Result};
 use axum::{
-    extract::State,
+    extract::{Path, State},
     routing::{get, post},
     Json, Router,
 };
 use lib_auth::{
     pwd::{validate_pwd, ContentToHash, SchemeStatus},
-    token::generate_web_token,
+    token::{generate_web_token, validate_web_token, Token},
 };
 use lib_core::model::{
     session::{Session, SessionBmc, SessionForAuth, SessionForCreate, SessionType},
@@ -25,6 +25,10 @@ pub fn routes(mm: ModelManager) -> Router {
         .route("/api/login", post(login_handler))
         .route("/api/logout", post(logout_handler))
         .route("/api/register", post(register_handler))
+        .route(
+            "/api/validate_email/:web_token",
+            post(validate_register_handler),
+        )
         .with_state(mm)
 }
 
@@ -163,12 +167,37 @@ pub async fn register_handler(
 
     let web_token = generate_web_token(&user.email, user.token_salt()?)?;
     debug!("{:<12} - Email validation: {:#}", "REGISTER", web_token);
-    debug!("{:<12} - Email validation: {:?}", "REGISTER", web_token);
 
     let body = Json(json!({
         "result":{
             "Register success": true,
             "Next step":"Check your email"
+        }
+    }));
+
+    Ok(body)
+}
+
+pub async fn validate_register_handler(
+    State(mm): State<ModelManager>,
+    Path(web_token): Path<String>,
+) -> Result<Json<Value>> {
+    let token: Token = web_token.parse()?;
+    debug!("{:<12} - Email validation: {:?}", "VALID EMAIL", web_token);
+
+    // validate token
+    let user: UserForLogin = UserBmc::first_by_identifier(&mm, &token.ident)
+        .await?
+        .ok_or(Error::UserNotFound {
+            identifier: token.ident.clone(),
+        })?;
+    validate_web_token(&token, user.token_salt()?)?;
+
+    UserBmc::validate_email(&mm, &token.ident).await?;
+
+    let body = Json(json!({
+        "result":{
+            "Email validated": true,
         }
     }));
 
