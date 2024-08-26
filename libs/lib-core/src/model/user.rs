@@ -257,7 +257,7 @@ impl UserBmc {
         Ok(user)
     }
 
-    pub async fn first_by_identifier<U>(mm: &ModelManager, identifier: &str) -> Result<Option<U>>
+    pub async fn first_by_identifier<U>(mm: &ModelManager, identifier: &str) -> Result<U>
     where
         U: UserBy,
     {
@@ -271,14 +271,16 @@ impl UserBmc {
                     .add(Expr::col(UserIden::Email).eq(identifier))
                     .add(Expr::col(UserIden::Username).eq(identifier)),
             );
-        let (sql, _) = query.build(SqliteQueryBuilder);
+        let (sql, values) = query.build_sqlx(SqliteQueryBuilder);
 
         // Execute
-        let user = sqlx::query_as::<_, U>(&sql)
-            .bind(identifier)
-            .bind(identifier)
+        let user = sqlx::query_as_with::<_, U, _>(&sql, values)
             .fetch_optional(mm.db())
-            .await?;
+            .await?
+            .ok_or(Error::EntityIdenNotFound {
+                entity: Self::TABLE,
+                identifier: identifier.to_string(),
+            })?;
 
         Ok(user)
     }
@@ -328,12 +330,7 @@ impl UserBmc {
     }
 
     pub async fn validate_email(mm: &ModelManager, user_email: &str) -> Result<()> {
-        let user: UserForLogin = Self::first_by_identifier(&mm, &user_email).await?.ok_or(
-            Error::EntityIdenNotFound {
-                entity: Self::TABLE,
-                identifier: user_email.to_string(),
-            },
-        )?;
+        let user: UserForLogin = Self::first_by_identifier(&mm, &user_email).await?;
 
         if user.valid_email {
             return Err(Error::EmailAlreadyValiadted);
@@ -559,12 +556,8 @@ mod tests {
         let user_id03 = UserBmc::create(&mm, valid_users[2].clone()).await?;
 
         // Get by identifier
-        let user01_by_username: User = UserBmc::first_by_identifier(&mm, "username_01")
-            .await?
-            .unwrap();
-        let user02_by_email: User = UserBmc::first_by_identifier(&mm, "email_02@test.com")
-            .await?
-            .unwrap();
+        let user01_by_username: User = UserBmc::first_by_identifier(&mm, "username_01").await?;
+        let user02_by_email: User = UserBmc::first_by_identifier(&mm, "email_02@test.com").await?;
         assert_eq!(user01_by_username.id, user_id01);
         assert_eq!(user02_by_email.id, user_id02);
 

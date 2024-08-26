@@ -35,6 +35,8 @@ pub enum Error {
     #[from]
     WebToken(lib_auth::token::Error),
     #[from]
+    Service(lib_core::service::Error),
+    #[from]
     Model(lib_core::model::Error),
 }
 

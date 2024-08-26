@@ -14,14 +14,12 @@ pub fn config() -> &'static Config {
 #[allow(non_snake_case)]
 pub struct Config {
     pub DB_URL: String,
-    pub TEST_DB_URL: String,
 }
 
 impl Config {
     pub fn load_from_env() -> lib_utils::Result<Config> {
         Ok(Config {
             DB_URL: get_env("SERVICE_DB_URL")?,
-            TEST_DB_URL: get_env("SERVICE_TEST_DB_URL")?,
         })
     }
 }

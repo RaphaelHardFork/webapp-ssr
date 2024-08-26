@@ -68,7 +68,7 @@ async fn _resolve_ctx(mm: State<ModelManager>, cookies: &Cookies) -> CtxExtResul
     // => set user_id in session_token would allow to retrieve easely the user)
     // => Or a join between these two table can be made, but should be in a "use_case" or
     // "repository" folder, not in entities.
-    let session = SessionBmc::get(&mm, &session_token_str)
+    let session = SessionBmc::first_by_token(&mm, &session_token_str)
         .await
         .map_err(|ex| CtxExtError::ModelAccessError(ex.to_string()))?;
     let user: UserForAuth = UserBmc::get(&mm, session.user_id)
@@ -93,7 +93,7 @@ async fn _resolve_ctx(mm: State<ModelManager>, cookies: &Cookies) -> CtxExtResul
     // update token in cookies
     let session_auth = SessionForAuth {
         token: session_token_str,
-        session_type: session_token.privileged,
+        privileged: session_token.privileged,
         expiration,
     };
     set_session_cookie(&cookies, session_auth).map_err(|_| CtxExtError::CannotSetInCookie)?;

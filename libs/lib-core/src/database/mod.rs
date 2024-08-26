@@ -2,7 +2,7 @@ mod error;
 
 pub use error::{Error, Result};
 
-use crate::{config, model::user::create_user_table};
+use crate::config;
 use lib_utils::files::{create_file, delete_file};
 use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
 use tracing::debug;

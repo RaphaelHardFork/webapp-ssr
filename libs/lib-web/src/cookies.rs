@@ -9,7 +9,7 @@ pub const SESSION_TOKEN: &str = "session-token";
 pub fn set_session_cookie(cookies: &Cookies, session_auth: SessionForAuth) -> Result<()> {
     let SessionForAuth {
         token,
-        session_type,
+        privileged,
         expiration,
     } = session_auth;
 
@@ -21,7 +21,7 @@ pub fn set_session_cookie(cookies: &Cookies, session_auth: SessionForAuth) -> Re
         .build();
 
     // Add expiration only in case of a non privileged session
-    if !SessionType::from(session_type).is_privileged() {
+    if !privileged {
         cookie.set_expires(parse_utc(&expiration)?);
     }
 

@@ -1,5 +1,5 @@
 use crate::model::base::utils::{add_timestamps_for_create, add_timestamps_for_update};
-use crate::model::base::{DbBmc, TimestampIden};
+use crate::model::base::{CommonIden, DbBmc, TimestampIden};
 use crate::model::user::{UserBmc, UserIden};
 use crate::model::ModelManager;
 use crate::model::{Error, Result};
@@ -10,6 +10,7 @@ use modql::field::{Field, Fields, HasFields};
 use sea_query::{ColumnDef, Expr, ForeignKey, Iden, Query, SqliteQueryBuilder, Table};
 use sea_query_binder::SqlxBinder;
 use sqlx::prelude::FromRow;
+use sqlx::sqlite::SqliteRow;
 use time::{Duration, OffsetDateTime};
 use tracing::debug;
 use uuid::Uuid;
@@ -77,12 +78,17 @@ pub struct SessionForInsert {
     expiration: String,
 }
 
-#[derive(Fields, FromRow, Debug)]
+#[derive(Fields, FromRow, Debug, Clone)]
 pub struct SessionForAuth {
     pub token: String,
-    pub session_type: bool,
+    pub privileged: bool,
     pub expiration: String,
 }
+
+/// Marker trait
+pub trait SessionBy: HasFields + for<'r> FromRow<'r, SqliteRow> + Unpin + Send {}
+impl SessionBy for Session {}
+impl SessionBy for SessionForAuth {}
 
 // endregion:	=== Session variants ===
 
@@ -165,7 +171,7 @@ impl SessionBmc {
         mm: &ModelManager,
         token_salt: Uuid,
         session_c: SessionForCreate,
-    ) -> Result<String> {
+    ) -> Result<i64> {
         let SessionForCreate {
             user_id,
             session_type,
@@ -201,29 +207,52 @@ impl SessionBmc {
             .into_table(Self::table_ref())
             .columns(columns)
             .values(sea_values)?
-            .returning(Query::returning().columns([SessionIden::Token]));
+            .returning(Query::returning().columns([CommonIden::Id]));
         let (sql, values) = query.build_sqlx(SqliteQueryBuilder);
 
         // Execute query
-        let (token,) = sqlx::query_as_with::<_, (String,), _>(&sql, values)
+        let (id,) = sqlx::query_as_with::<_, (i64,), _>(&sql, values)
             .fetch_one(mm.db())
             .await?;
 
-        Ok(token)
+        Ok(id)
     }
 
-    pub async fn get(mm: &ModelManager, token: &str) -> Result<Session> {
+    pub async fn get<S>(mm: &ModelManager, id: i64) -> Result<S>
+    where
+        S: SessionBy,
+    {
+        // Build query
+        let mut query = Query::select();
+        query
+            .from(Self::table_ref())
+            .columns(Session::field_column_refs())
+            .and_where(Expr::col(SessionIden::Id).eq(id));
+        let (sql, values) = query.build_sqlx(SqliteQueryBuilder);
+
+        // Execute query
+        let session = sqlx::query_as_with::<_, S, _>(&sql, values)
+            .fetch_optional(mm.db())
+            .await?
+            .ok_or(Error::EntityIdNotFound {
+                entity: Self::TABLE,
+                id,
+            })?;
+
+        Ok(session)
+    }
+
+    pub async fn first_by_token(mm: &ModelManager, token: &str) -> Result<Session> {
         // Build query
         let mut query = Query::select();
         query
             .from(Self::table_ref())
             .columns(Session::field_column_refs())
             .and_where(Expr::col(SessionIden::Token).eq(token));
-        let (sql, _) = query.build(SqliteQueryBuilder);
+        let (sql, values) = query.build_sqlx(SqliteQueryBuilder);
 
         // Execute query
-        let session = sqlx::query_as::<_, Session>(&sql)
-            .bind(token)
+        let session = sqlx::query_as_with::<_, Session, _>(&sql, values)
             .fetch_optional(mm.db())
             .await?
             .ok_or(Error::EntityIdenNotFound {
@@ -251,7 +280,7 @@ impl SessionBmc {
 
     /// Returns the expiration formatted RFC 3339
     pub async fn extend_expiration(mm: &ModelManager, token: &str) -> Result<String> {
-        let session = Self::get(&mm, token).await?;
+        let session = Self::first_by_token(&mm, token).await?;
 
         // Update expiration
         let now = now_utc();
@@ -280,11 +309,11 @@ impl SessionBmc {
         Ok(expiration)
     }
 
-    pub async fn delete(mm: &ModelManager, token: String) -> Result<()> {
+    pub async fn delete(mm: &ModelManager, id: i64) -> Result<()> {
         let mut query = Query::delete();
         query
             .from_table(Self::table_ref())
-            .and_where(Expr::col(SessionIden::Token).eq(token));
+            .and_where(Expr::col(SessionIden::Id).eq(id));
         let (sql, values) = query.build_sqlx(SqliteQueryBuilder);
 
         let _count = sqlx::query_with(&sql, values).execute(mm.db()).await?;
@@ -393,7 +422,7 @@ mod tests {
 
         // Normal session
         let now = now_utc();
-        let session_token = SessionBmc::create(
+        let session_id = SessionBmc::create(
             &mm,
             user01.token_salt()?,
             SessionForCreate {
@@ -404,16 +433,16 @@ mod tests {
         .await?;
 
         // -- Check
-        let session = SessionBmc::get(&mm, &session_token).await?;
+        let session: Session = SessionBmc::get(&mm, session_id).await?;
         assert!(!session.privileged, "not privileged");
-        assert_eq!(session_token, session.token);
+        assert!(session.token.contains(":$:"));
 
         let estimated_exp = now.replace_millisecond(0)? + Duration::seconds(SESSION_DURATION_SEC);
         assert_eq!(estimated_exp, session.expiration.replace_millisecond(0)?);
 
         // Privileged session
         let now = now_utc();
-        let privileged_session_token = SessionBmc::create(
+        let privileged_session_id = SessionBmc::create(
             &mm,
             user01.token_salt()?,
             SessionForCreate {
@@ -423,9 +452,9 @@ mod tests {
         )
         .await?;
 
-        let privileged_session = SessionBmc::get(&mm, &privileged_session_token).await?;
+        let privileged_session: Session = SessionBmc::get(&mm, privileged_session_id).await?;
         assert!(privileged_session.privileged, "privileged");
-        assert_eq!(privileged_session_token, privileged_session.token);
+        assert!(privileged_session.token.contains(":#:"));
 
         let estimated_exp =
             now.replace_millisecond(0)? + Duration::seconds(SESSION_PRIVILEGED_DURATION_SEC);
@@ -464,7 +493,7 @@ mod tests {
         let user_id = UserBmc::create(&mm, user_c.clone()).await?;
         let user: UserForAuth = UserBmc::get(&mm, user_id).await?;
 
-        let session_token = SessionBmc::create(
+        let session_id = SessionBmc::create(
             &mm,
             user.token_salt()?,
             SessionForCreate {
@@ -473,10 +502,10 @@ mod tests {
             },
         )
         .await?;
-        let session = SessionBmc::get(&mm, &session_token).await?;
+        let session: Session = SessionBmc::get(&mm, session_id).await?;
 
         // -- Exec
-        let new_expiration = SessionBmc::extend_expiration(&mm, &session_token).await?;
+        let new_expiration = SessionBmc::extend_expiration(&mm, &session.token).await?;
         let new_expiration = parse_utc(&new_expiration)?;
 
         // -- Check
@@ -500,7 +529,7 @@ mod tests {
         let user_id = UserBmc::create(&mm, user_c.clone()).await?;
         let user: UserForAuth = UserBmc::get(&mm, user_id).await?;
 
-        let session_token01 = SessionBmc::create(
+        let session01_id = SessionBmc::create(
             &mm,
             user.token_salt()?,
             SessionForCreate {
@@ -509,7 +538,7 @@ mod tests {
             },
         )
         .await?;
-        let session_token02 = SessionBmc::create(
+        let session02_id = SessionBmc::create(
             &mm,
             user.token_salt()?,
             SessionForCreate {
@@ -518,21 +547,21 @@ mod tests {
             },
         )
         .await?;
-        let _session01 = SessionBmc::get(&mm, &session_token01).await?;
-        let session02 = SessionBmc::get(&mm, &session_token02).await?;
+        let _session01: Session = SessionBmc::get(&mm, session01_id).await?;
+        let session02: Session = SessionBmc::get(&mm, session02_id).await?;
 
         // -- Exec
-        SessionBmc::delete(&mm, session_token01.clone()).await?;
+        SessionBmc::delete(&mm, session01_id.clone()).await?;
 
         // -- Check
         assert!(matches!(
-            SessionBmc::get(&mm, &session_token01).await,
-            Err(ModelError::EntityIdenNotFound {
+            SessionBmc::get::<Session>(&mm, session01_id).await,
+            Err(ModelError::EntityIdNotFound {
                 entity: "session",
-                identifier: _
+                id: _
             })
         ));
-        let session02_again = SessionBmc::get(&mm, &session_token02).await?;
+        let session02_again: Session = SessionBmc::get(&mm, session02_id).await?;
         assert_eq!(session02.id, session02_again.id);
 
         Ok(())
