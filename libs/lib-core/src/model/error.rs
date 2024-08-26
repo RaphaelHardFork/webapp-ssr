@@ -1,37 +1,31 @@
-use axum::http::StatusCode;
+use crate::database;
 use derive_more::From;
 use serde::Serialize;
 use serde_with::{serde_as, DisplayFromStr};
-
-use crate::database;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[serde_as]
 #[derive(Debug, Serialize, From)]
 pub enum Error {
-    // Controller
+    // Base: DB result
+    EntityIdNotFound {
+        entity: &'static str,
+        id: i64,
+    },
+    EntityIdenNotFound {
+        entity: &'static str,
+        identifier: String,
+    },
+
+    // Base: DB insert
     EmptyField {
         field: &'static str,
     },
     WrongEmailFormat,
+    EmailAlreadyValiadted,
 
-    EntityNotFound {
-        entity: &'static str,
-        id: i64,
-    },
-    WrongUuidFormat {
-        uuid: String,
-    },
-    UuidParsingFail(String),
-    IdentifierNotFound {
-        identifier: String,
-    },
-
-    // Session
-    NoAuthToken,
-
-    // Database
+    // Modules
     #[from]
     SQLiteConnection(database::Error),
 
@@ -44,6 +38,8 @@ pub enum Error {
     Token(lib_auth::token::Error),
 
     // Externals
+    #[from]
+    Uuid(#[serde_as(as = "DisplayFromStr")] uuid::Error),
     #[from]
     SeaQuery(#[serde_as(as = "DisplayFromStr")] sea_query::error::Error),
     #[from]

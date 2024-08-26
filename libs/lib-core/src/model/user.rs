@@ -1,27 +1,15 @@
-use super::{
-    base::{DbBmc, UuidStr},
-    ModelManager, Result,
-};
-use crate::model::{
-    base::{
-        utils::{add_timestamps_for_create, add_timestamps_for_update},
-        CommonIden, TimestampIden,
-    },
-    Error,
-};
+use crate::model::base::utils::{add_timestamps_for_create, add_timestamps_for_update};
+use crate::model::base::{CommonIden, DbBmc, TimestampIden, UuidStr};
+use crate::model::ModelManager;
+use crate::model::{Error, Result};
 
 use lazy_regex::regex_is_match;
 use lib_auth::pwd::{self, ContentToHash};
-use lib_utils::time::now_utc;
 use modql::field::{Field, Fields, HasFields};
-use sea_query::{
-    ColumnDef, Cond, Expr, Iden, LogicalChainOper, Query, SimpleExpr, SqliteQueryBuilder, Table,
-    Value,
-};
+use sea_query::{ColumnDef, Cond, Expr, Iden, Query, SqliteQueryBuilder, Table, Value};
 use sea_query_binder::SqlxBinder;
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqliteRow, FromRow};
-use std::{thread, time::Duration};
 use tracing::debug;
 use uuid::Uuid;
 
@@ -38,7 +26,7 @@ pub struct User {
 pub struct UserForCreate {
     pub username: String,
     pub email: String,
-    pub pwd: String,
+    pub pwd_clear: String,
 }
 
 #[derive(Fields, FromRow, Clone)]
@@ -56,7 +44,7 @@ pub struct UserForLogin {
     pub email: String,
     pub valid_email: bool,
 
-    pub pwd: String, // encrypted => #_scheme_id_#...
+    pub pwd: String,
     pub pwd_salt: UuidStr,
     pub token_salt: UuidStr,
 }
@@ -64,22 +52,28 @@ pub struct UserForLogin {
 #[derive(Clone, FromRow, Debug, Fields)]
 pub struct UserForAuth {
     pub id: i64,
-    pub username: Option<String>,
-    pub email: Option<String>,
+    pub username: String,
+    pub email: String,
 
     pub token_salt: UuidStr,
 }
 
+/// Marker trait
+pub trait UserBy: HasFields + for<'r> FromRow<'r, SqliteRow> + Unpin + Send {}
+impl UserBy for User {}
+impl UserBy for UserForLogin {}
+impl UserBy for UserForAuth {}
+
 // endregion:	=== User variants ===
 
-// region:		=== Controllers ===
+// region:		=== Controllers & cast ===
 
 impl UserForCreate {
     pub fn validate(&self) -> Result<()> {
         match self {
             _ if self.username.is_empty() => Err(Error::EmptyField { field: "username" }),
             _ if self.email.is_empty() => Err(Error::EmptyField { field: "email" }),
-            _ if self.pwd.is_empty() => Err(Error::EmptyField { field: "pwd" }),
+            _ if self.pwd_clear.is_empty() => Err(Error::EmptyField { field: "pwd" }),
             user_c => {
                 if !regex_is_match!(r"^[\w\.-]+@[a-zA-Z\d\.-]+\.[a-zA-Z]{2,}$", &user_c.email) {
                     Err(Error::WrongEmailFormat)
@@ -93,27 +87,26 @@ impl UserForCreate {
 
 impl UserForLogin {
     pub fn pwd_salt(&self) -> Result<Uuid> {
-        Uuid::parse_str(&self.pwd_salt).map_err(|ex| Error::UuidParsingFail(ex.to_string()))
+        Ok(Uuid::parse_str(&self.pwd_salt)?)
     }
 
     pub fn token_salt(&self) -> Result<Uuid> {
-        Uuid::parse_str(&self.token_salt).map_err(|ex| Error::UuidParsingFail(ex.to_string()))
+        Ok(Uuid::parse_str(&self.token_salt)?)
     }
 }
 
 impl UserForAuth {
     pub fn token_salt(&self) -> Result<Uuid> {
-        Uuid::parse_str(&self.token_salt).map_err(|ex| Error::UuidParsingFail(ex.to_string()))
+        Ok(Uuid::parse_str(&self.token_salt)?)
     }
 }
 
-// endregion:	=== Controllers ===
+// endregion:	=== Controllers & cast ===
 
 // region:		=== User DB Table ===
 
 #[derive(Iden)]
 pub enum UserIden {
-    Table,
     Id,
     // info
     Username,
@@ -126,22 +119,20 @@ pub enum UserIden {
 }
 
 pub async fn create_user_table(mm: &ModelManager) -> Result<()> {
-    // Check if the table exist (only for dev information) => by checking for the root user
-
     // Build query
     let mut query = Table::create();
     query
-        .table(UserIden::Table)
+        .table(UserBmc::table_ref())
         .if_not_exists()
-        // id
+        // --- Id
         .col(
             ColumnDef::new(UserIden::Id)
                 .big_integer()
                 .not_null()
                 .primary_key()
-                .auto_increment(), // first user can have id 1000 to force starting at 1000
+                .auto_increment(),
         )
-        // info
+        // --- Informations
         .col(
             ColumnDef::new(UserIden::Username)
                 .string_len(128)
@@ -159,11 +150,11 @@ pub async fn create_user_table(mm: &ModelManager) -> Result<()> {
                 .boolean()
                 .default(false),
         )
-        // auth
+        // --- Auth
         .col(ColumnDef::new(UserIden::Pwd).string_len(256))
         .col(ColumnDef::new(UserIden::PwdSalt).text())
         .col(ColumnDef::new(UserIden::TokenSalt).text())
-        // timestamps
+        // --- Timestamps
         .col(ColumnDef::new(TimestampIden::CId).big_integer().not_null())
         .col(
             ColumnDef::new(TimestampIden::CTime)
@@ -190,12 +181,6 @@ pub async fn create_user_table(mm: &ModelManager) -> Result<()> {
 
 // endregion:	=== User DB Table ===
 
-/// Marker trait
-pub trait UserBy: HasFields + for<'r> FromRow<'r, SqliteRow> + Unpin + Send {}
-impl UserBy for User {}
-impl UserBy for UserForLogin {}
-impl UserBy for UserForAuth {}
-
 // region:		=== User CRUD ===
 
 pub struct UserBmc;
@@ -209,7 +194,7 @@ impl UserBmc {
         let UserForCreate {
             username,
             email,
-            pwd,
+            pwd_clear,
         } = user_c;
 
         // Generate salts (as SQlite does not have UUID, cannot be generated by default)
@@ -224,13 +209,13 @@ impl UserBmc {
 
         // Extract and prepare Fields
         let mut fields = user_fi.clone().not_none_fields();
-        add_timestamps_for_create(&mut fields, 999); // 999 = system ID
+        add_timestamps_for_create(&mut fields, 999); // FIXME: ROOt_CTX
         let (columns, sea_values) = fields.for_sea_insert();
 
         // Build query
         let mut query = Query::insert();
         query
-            .into_table(UserIden::Table)
+            .into_table(Self::table_ref())
             .columns(columns)
             .values(sea_values)?
             .returning(Query::returning().columns([CommonIden::Id]));
@@ -242,7 +227,7 @@ impl UserBmc {
             .await?;
 
         // Create pwd_salt and hash pwd
-        Self::update_pwd(mm, user_id, &pwd).await?;
+        Self::update_pwd(mm, user_id, &pwd_clear).await?;
 
         Ok(user_id)
     }
@@ -254,7 +239,7 @@ impl UserBmc {
         // Build query
         let mut query = Query::select();
         query
-            .from(UserIden::Table)
+            .from(Self::table_ref())
             .columns(U::field_column_refs())
             .and_where(Expr::col(UserIden::Id).eq(id));
         let (sql, _) = query.build(SqliteQueryBuilder);
@@ -264,31 +249,10 @@ impl UserBmc {
             .bind(id)
             .fetch_optional(mm.db())
             .await?
-            .ok_or(Error::EntityNotFound {
+            .ok_or(Error::EntityIdNotFound {
                 entity: Self::TABLE,
                 id,
             })?;
-
-        Ok(user)
-    }
-
-    pub async fn first_by_username<U>(mm: &ModelManager, username: &str) -> Result<Option<U>>
-    where
-        U: UserBy,
-    {
-        // Build query
-        let mut query = Query::select();
-        query
-            .from(UserIden::Table)
-            .columns(U::field_column_refs())
-            .and_where(Expr::col(UserIden::Username).eq(username));
-        let (sql, _) = query.build(SqliteQueryBuilder);
-
-        // Execute
-        let user = sqlx::query_as::<_, U>(&sql)
-            .bind(username)
-            .fetch_optional(mm.db())
-            .await?;
 
         Ok(user)
     }
@@ -300,7 +264,7 @@ impl UserBmc {
         // Build query
         let mut query = Query::select();
         query
-            .from(UserIden::Table)
+            .from(Self::table_ref())
             .columns(U::field_column_refs())
             .cond_where(
                 Cond::any()
@@ -322,7 +286,7 @@ impl UserBmc {
     pub async fn list(mm: &ModelManager) -> Result<Vec<User>> {
         let mut query = Query::select();
         query
-            .from(UserIden::Table)
+            .from(Self::table_ref())
             .columns(User::field_column_refs());
         let (sql, _) = query.build(SqliteQueryBuilder);
 
@@ -331,15 +295,14 @@ impl UserBmc {
         Ok(users)
     }
 
-    pub async fn update_pwd(mm: &ModelManager, id: i64, pwd: &str) -> Result<()> {
+    pub async fn update_pwd(mm: &ModelManager, id: i64, pwd_clear: &str) -> Result<()> {
         // Get pwd_salt
-        let user_fl: UserForLogin = Self::get(mm, id).await?;
-        let pwd_salt = Uuid::parse_str(&user_fl.pwd_salt)
-            .map_err(|ex| Error::UuidParsingFail(ex.to_string()))?;
+        let user_login: UserForLogin = Self::get(mm, id).await?;
+        let pwd_salt = Uuid::parse_str(&user_login.pwd_salt)?;
 
         // Create pwd_hash
         let pwd_hash = pwd::hash_pwd(ContentToHash {
-            content: pwd.to_string(),
+            content: pwd_clear.to_string(),
             salt: pwd_salt,
         })
         .await?;
@@ -353,26 +316,28 @@ impl UserBmc {
         // Build query
         let mut query = Query::update();
         query
-            .table(UserIden::Table)
+            .table(Self::table_ref())
             .values(fields)
             .and_where(Expr::col(CommonIden::Id).eq(id));
         let (sql, values) = query.build_sqlx(SqliteQueryBuilder);
 
         // Execute query
         let _count = sqlx::query_with(&sql, values).execute(mm.db()).await?;
-        // check if new pwd salt is generated ?
 
         Ok(())
     }
 
     pub async fn validate_email(mm: &ModelManager, user_email: &str) -> Result<()> {
-        let user: User = Self::first_by_identifier(&mm, &user_email).await?.ok_or(
-            Error::IdentifierNotFound {
+        let user: UserForLogin = Self::first_by_identifier(&mm, &user_email).await?.ok_or(
+            Error::EntityIdenNotFound {
+                entity: Self::TABLE,
                 identifier: user_email.to_string(),
             },
         )?;
 
-        // TODO: already validated
+        if user.valid_email {
+            return Err(Error::EmailAlreadyValiadted);
+        }
 
         let mut fields = Fields::new(vec![Field::new(
             UserIden::ValidEmail,
@@ -383,7 +348,7 @@ impl UserBmc {
 
         let mut query = Query::update();
         query
-            .table(UserIden::Table)
+            .table(Self::table_ref())
             .values(fields)
             .and_where(Expr::col(CommonIden::Id).eq(user.id));
         let (sql, values) = query.build_sqlx(SqliteQueryBuilder);
@@ -408,45 +373,47 @@ mod tests {
     type Error = Box<dyn std::error::Error + Send + Sync>;
     type Result<T> = CoreResult<T, Error>; // For tests.
 
-    pub trait UnwrapOrClean<T> {
-        async fn unwrap_or_clean(self, mm: &ModelManager) -> Result<T>;
-    }
-    impl<T, E> UnwrapOrClean<T> for CoreResult<T, E>
-    where
-        E: std::error::Error + Send + Sync + 'static,
-    {
-        async fn unwrap_or_clean(self, mm: &ModelManager) -> Result<T> {
-            match self {
-                Ok(val) => Ok(val),
-                Err(err) => {
-                    drop_user_table(mm).await?;
-                    Err(err.into())
-                }
-            }
-        }
-    }
+    // /// helpers to drop the table case the test exit
+    // pub trait UnwrapOrClean<T> {
+    //     async fn unwrap_or_clean(self, mm: &ModelManager) -> Result<T>;
+    // }
+    // impl<T, E> UnwrapOrClean<T> for CoreResult<T, E>
+    // where
+    //     E: std::error::Error + Send + Sync + 'static,
+    // {
+    //     async fn unwrap_or_clean(self, mm: &ModelManager) -> Result<T> {
+    //         match self {
+    //             Ok(val) => Ok(val),
+    //             Err(err) => {
+    //                 drop_user_table(mm).await?;
+    //                 Err(err.into())
+    //             }
+    //         }
+    //     }
+    // }
 
     async fn drop_user_table(mm: &ModelManager) -> Result<()> {
-        sqlx::query("DROP TABLE IF EXISTS user_iden")
+        sqlx::query("DROP TABLE IF EXISTS user")
             .execute(mm.db())
             .await?;
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_create_user_table_ok() -> Result<()> {
+    async fn test_table() -> Result<()> {
         // Setup & Fixtures
         let mm = ModelManager::new().await?;
 
         // Exec
         create_user_table(&mm).await?;
-        let rows = sqlx::query("PRAGMA table_info(user_iden)")
+        let rows = sqlx::query("PRAGMA table_info(user)")
             .fetch_all(mm.db())
             .await?;
 
         // Display
+        println!("\nTable 'user' info:");
         println!(
-            "{:<10} {:<12} {:<10} {:<8} {}",
+            "{:<12} {:<12} {:<10} {:<8} {}",
             "NAME", "TYPE", "NOT NULL", "PRIM_KEY", "DEFAULT_VALUE"
         );
         for row in &rows {
@@ -456,19 +423,19 @@ mod tests {
             let pk: bool = row.try_get("pk")?;
             let default: String = row.try_get("dflt_value")?;
             println!(
-                "{:<10} {:<12} {:<10} {:<8} {}",
+                "{:<12} {:<12} {:<10} {:<8} {}",
                 name, col_type, not_null, pk, default
             );
         }
 
         // Check
-        assert_eq!(rows.len(), 10);
+        assert_eq!(rows.len(), 7 + 4);
 
         // Clean
         drop_user_table(&mm).await?;
 
         // Check Clean (for others tests)
-        let rows = sqlx::query("PRAGMA table_info(user_iden)")
+        let rows = sqlx::query("PRAGMA table_info(user)")
             .fetch_all(mm.db())
             .await?;
         assert_eq!(rows.len(), 0);
@@ -485,27 +452,34 @@ mod tests {
         let user_c_valid = UserForCreate {
             username: "test___fx_username".to_string(),
             email: "test___fx_email@doma.in".to_string(),
-            pwd: "test___fx_password".to_string(),
+            pwd_clear: "test___fx_password".to_string(),
         };
 
         // -- Exec
         let user_id = UserBmc::create(&mm, user_c_valid.clone()).await?;
 
-        // Check
+        // Check User
         let user: User = UserBmc::get(&mm, user_id).await?;
-        let user_login: UserForLogin = UserBmc::get(&mm, user_id).await?;
-
-        // -- Check
         assert_eq!(user.id, user_id);
         assert_eq!(user.username, user_c_valid.username);
         assert_eq!(user.email, user_c_valid.email);
 
-        assert_eq!(user_login.pwd_salt.len(), 32 + 4);
-        assert_eq!(user_login.token_salt.len(), 32 + 4);
-        assert!(user_login.pwd.starts_with("#02#$argon2d$"));
+        // Check UserForLogin
+        let user: UserForLogin = UserBmc::get(&mm, user_id).await?;
+        assert_eq!(user.id, user_id);
+        assert_eq!(user.username, user_c_valid.username);
+        assert_eq!(user.email, user_c_valid.email);
+        assert_eq!(user.valid_email, false);
+        assert_eq!(user.pwd_salt.len(), 32 + 4);
+        assert_eq!(user.token_salt.len(), 32 + 4);
+        assert!(user.pwd.starts_with("#02#$argon2d$"));
 
-        // Clean
-        drop_user_table(&mm).await?;
+        // Check UserForAuth
+        let user: UserForAuth = UserBmc::get(&mm, user_id).await?;
+        assert_eq!(user.id, user_id);
+        assert_eq!(user.username, user_c_valid.username);
+        assert_eq!(user.email, user_c_valid.email);
+        assert_eq!(user.token_salt.len(), 32 + 4);
 
         Ok(())
     }
@@ -524,23 +498,23 @@ mod tests {
         let uc_fail_username = UserForCreate {
             username: empty.clone(),
             email: valid_email.clone(),
-            pwd: valid_pwd.clone(),
+            pwd_clear: valid_pwd.clone(),
         };
         let uc_fail_email = UserForCreate {
             username: valid_username.clone(),
             email: empty.clone(),
-            pwd: valid_pwd.clone(),
+            pwd_clear: valid_pwd.clone(),
         };
         let uc_fail_pwd = UserForCreate {
             username: valid_username.clone(),
             email: valid_email.clone(),
-            pwd: empty.clone(),
+            pwd_clear: empty.clone(),
         };
 
         let uc_fail_regex_email = UserForCreate {
             username: valid_username.clone(),
             email: "test___faulty_email".to_string(),
-            pwd: valid_pwd.clone(),
+            pwd_clear: valid_pwd.clone(),
         };
 
         // Exec & Check
@@ -562,9 +536,6 @@ mod tests {
             Err(ModelError::WrongEmailFormat)
         ));
 
-        // Clean
-        drop_user_table(&mm).await?;
-
         Ok(())
     }
 
@@ -573,76 +544,114 @@ mod tests {
         // -- Setup & Fixtures
         let mm = ModelManager::new().await?;
         create_user_table(&mm).await?;
-        let user_c_valid_01 = UserForCreate {
-            username: "test___fx01_username".to_string(),
-            email: "test___fx01_email@doma.in".to_string(),
-            pwd: "test___fx01_password".to_string(),
-        };
-        let user_c_valid_02 = UserForCreate {
-            username: "test___fx02_username".to_string(),
-            email: "test___fx02_email@doma.in".to_string(),
-            pwd: "test___fx02_password".to_string(),
-        };
-        let user_c_valid_03 = UserForCreate {
-            username: "test___fx03_username".to_string(),
-            email: "test___fx03_email@doma.in".to_string(),
-            pwd: "test___fx03_password".to_string(),
-        };
+        let valid_users: Vec<UserForCreate> = ["01", "02", "03"]
+            .into_iter()
+            .map(|i| UserForCreate {
+                username: format!("username_{}", i),
+                email: format!("email_{}@test.com", i),
+                pwd_clear: format!("password_{}", i),
+            })
+            .collect();
 
         // Exec & Check
-        let user_id01 = UserBmc::create(&mm, user_c_valid_01.clone()).await?;
-        let user_id02 = UserBmc::create(&mm, user_c_valid_02.clone()).await?;
-        let user_id03 = UserBmc::create(&mm, user_c_valid_03.clone()).await?;
+        let user_id01 = UserBmc::create(&mm, valid_users[0].clone()).await?;
+        let user_id02 = UserBmc::create(&mm, valid_users[1].clone()).await?;
+        let user_id03 = UserBmc::create(&mm, valid_users[2].clone()).await?;
 
-        // get by identifier
-        let user_by_username: Option<User> =
-            UserBmc::first_by_identifier(&mm, "test___fx01_username").await?;
-        let user_by_email: Option<User> =
-            UserBmc::first_by_identifier(&mm, "test___fx01_email@doma.in").await?;
-
-        assert!(user_by_username.is_some());
-        assert!(user_by_email.is_some());
+        // Get by identifier
+        let user01_by_username: User = UserBmc::first_by_identifier(&mm, "username_01")
+            .await?
+            .unwrap();
+        let user02_by_email: User = UserBmc::first_by_identifier(&mm, "email_02@test.com")
+            .await?
+            .unwrap();
+        assert_eq!(user01_by_username.id, user_id01);
+        assert_eq!(user02_by_email.id, user_id02);
 
         // lists
         let users = UserBmc::list(&mm).await?;
         assert_eq!(users.len(), 3);
-
-        // Clean
-        drop_user_table(&mm).await?;
+        assert_eq!(users[2].id, user_id03);
 
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_manual_sql() -> Result<()> {
+    async fn test_update_pwd_ok() -> Result<()> {
         // -- Setup & Fixtures
-        // let mm = ModelManager::new().await?;
-        // create_user_table(&mm).await?;
+        let mm = ModelManager::new().await?;
+        create_user_table(&mm).await?;
+        let valid_user = UserForCreate {
+            username: format!("username_{}", "01"),
+            email: format!("email_{}@test.com", "01"),
+            pwd_clear: format!("password_{}", "01"),
+        };
+        let user_id = UserBmc::create(&mm, valid_user.clone()).await?;
+        let user: UserForLogin = UserBmc::get(&mm, user_id).await?;
 
-        // let rows = sqlx::query("PRAGMA table_info(user_iden)")
-        //     .fetch_all(mm.db())
-        //     .await?;
+        // -- Exec
+        UserBmc::update_pwd(&mm, user_id, "new password").await?;
+        let user_pwd_updated: UserForLogin = UserBmc::get(&mm, user_id).await?;
 
-        // for row in rows {
-        //     let name: String = row.try_get("name")?;
-        //     let col_type: String = row.try_get("type")?;
-        //     let not_null: i32 = row.try_get("notnull")?;
-        //     println!("{:?} {:?} {:?}", name, col_type, not_null);
-        // }
+        // -- Check
+        assert_ne!(user.pwd, user_pwd_updated.pwd);
+        assert_eq!(user.pwd_salt, user_pwd_updated.pwd_salt);
 
-        // sqlx::query("INSERT INTO user_iden (username, email, cid, mid) VALUES (?1, ?2, ?3, ?4)")
-        //     .bind("demo".to_string())
-        //     .bind("mail@demo.io".to_string())
-        //     .bind(1)
-        //     .bind(2)
-        //     .execute(mm.db())
-        //     .await?;
+        Ok(())
+    }
 
-        // let users = sqlx::query_as::<_, User>("SELECT * FROM user_iden")
-        //     .fetch_all(mm.db())
-        //     .await?;
+    #[tokio::test]
+    async fn test_validate_email_ok() -> Result<()> {
+        // -- Setup & Fixtures
+        let mm = ModelManager::new().await?;
+        create_user_table(&mm).await?;
+        let valid_user = UserForCreate {
+            username: format!("username_{}", "01"),
+            email: format!("email_{}@test.com", "01"),
+            pwd_clear: format!("password_{}", "01"),
+        };
+        let user_id = UserBmc::create(&mm, valid_user.clone()).await?;
+        let user: UserForLogin = UserBmc::get(&mm, user_id).await?;
 
-        // println!("{:?}", users);
+        // -- Exec
+        UserBmc::validate_email(&mm, &user.email).await?;
+        let user_email_validated: UserForLogin = UserBmc::get(&mm, user_id).await?;
+
+        // -- Check
+        assert!(!user.valid_email);
+        assert!(user_email_validated.valid_email);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_validate_email_err() -> Result<()> {
+        // -- Setup & Fixtures
+        let mm = ModelManager::new().await?;
+        create_user_table(&mm).await?;
+        let valid_user = UserForCreate {
+            username: format!("username_{}", "01"),
+            email: format!("email_{}@test.com", "01"),
+            pwd_clear: format!("password_{}", "01"),
+        };
+        let user_id = UserBmc::create(&mm, valid_user.clone()).await?;
+        let user: UserForLogin = UserBmc::get(&mm, user_id).await?;
+
+        // Unknown email iden
+        assert!(matches!(
+            UserBmc::validate_email(&mm, "unknown_email").await,
+            Err(ModelError::EntityIdenNotFound {
+                entity: "user",
+                identifier: _
+            })
+        ));
+
+        // Mail already validated
+        UserBmc::validate_email(&mm, &user.email).await?;
+        assert!(matches!(
+            UserBmc::validate_email(&mm, &user.email).await,
+            Err(ModelError::EmailAlreadyValiadted)
+        ));
 
         Ok(())
     }

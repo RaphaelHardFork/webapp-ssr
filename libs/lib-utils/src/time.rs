@@ -6,6 +6,7 @@ pub fn now_utc() -> OffsetDateTime {
     OffsetDateTime::now_utc()
 }
 
+/// RFC 3339 formatted
 pub fn format_time(time: OffsetDateTime) -> String {
     time.format(&Rfc3339).unwrap() // TODO: catch errors
 }

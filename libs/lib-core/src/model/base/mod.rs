@@ -1,5 +1,6 @@
 pub mod utils;
 
+use modql::SIden;
 use sea_query::types::IntoIden;
 use sea_query::{Iden, TableRef};
 
@@ -9,8 +10,8 @@ pub type UuidStr = String;
 
 // region:		=== Const ===
 
-const LIST_LIMIT_DEFAULT: i64 = 1000;
-const LIST_LIMIT_MAX: i64 = 5000;
+// const LIST_LIMIT_DEFAULT: i64 = 1000;
+// const LIST_LIMIT_MAX: i64 = 5000;
 
 // endregion:	=== Const ===
 
@@ -19,7 +20,6 @@ const LIST_LIMIT_MAX: i64 = 5000;
 #[derive(Iden)]
 pub enum CommonIden {
     Id,
-    OwnerId,
 }
 
 #[derive(Iden)]
@@ -37,4 +37,8 @@ pub enum TimestampIden {
 /// DB backend model controller
 pub trait DbBmc {
     const TABLE: &'static str;
+
+    fn table_ref() -> TableRef {
+        TableRef::Table(SIden(Self::TABLE).into_iden())
+    }
 }

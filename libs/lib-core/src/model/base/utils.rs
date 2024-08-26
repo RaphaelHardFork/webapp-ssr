@@ -1,13 +1,8 @@
+use super::TimestampIden;
 use lib_utils::time::{format_time, now_utc};
 
 use modql::field::{Field, Fields};
 use sea_query::IntoIden;
-use tracing::debug;
-use uuid::Uuid;
-
-use crate::model::{Error, Result};
-
-use super::TimestampIden;
 
 // region:		=== Timestamps ===
 pub fn add_timestamps_for_create(fields: &mut Fields, user_id: i64) {
