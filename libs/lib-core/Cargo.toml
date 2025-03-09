@@ -9,12 +9,22 @@ workspace = true
 [dependencies]
 # -- Libs
 lib-utils = { path = "../lib-utils" }
-# -- Data
-sqlx = { version = "0.8.0", features = [
+lib-auth = { path = "../lib-auth" }
+# -- Async
+tokio = { workspace = true }
+# -- Data (using sqlx 0.8 is still complicated with others helpers libs)
+sqlx = { version = "0.7.4", features = [
   "runtime-tokio",
   "tls-rustls",
   "sqlite",
   "uuid",
+] }
+modql = { version = "0.3.4", features = ["with-sea-query"] }
+sea-query = "0.30"
+sea-query-binder = { version = "0.5", features = [
+  "sqlx-sqlite",
+  "with-uuid",
+  "with-time",
 ] }
 # -- Json
 serde.workspace = true
@@ -28,3 +38,6 @@ tracing-subscriber.workspace = true
 axum.workspace = true
 # -- Utils
 derive_more.workspace = true
+uuid = { workspace = true }
+time = { workspace = true }
+lazy-regex = "3"

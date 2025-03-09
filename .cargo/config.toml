@@ -2,3 +2,14 @@
 [env]
 RUST_LOG = "server=debug"
 SERVICE_DB_URL = ".data/database.db"
+SERVICE_TEST_DB_URL = ".data/database_test.db"
+
+# --- Secrets
+# Should only be present for localhost / dev workaround
+
+SERVICE_PWD_KEY = "jM6CeBPWSaOVTlkxSobBn8CeG1KyUN-o4sdVbV8H1I_lwNiyn7mS-99o1lxAo5kxCFp80B-IwQWv1J2kpJKEWQ"
+
+SERVICE_TOKEN_KEY = "4lKRMvk61TzXNkocJXqF4Ox-GjhAQZE735DNk5Xr1KwbbHMN6odeeo38QrPMSg_4HBBbdy0exdNThHLLumNvHg"
+SERVICE_TOKEN_DURATION_SEC = "1800"                                                                          # 30 minutes
+
+SERVICE_SESSION_KEY = "4lKRMvk61TzXNkocJXqF4Ox-GjhAQZE735DNk5Xr1KwbbHMN6odeeo38QrPMSg_4HBBbdy0exdNThHLLumNvHg"

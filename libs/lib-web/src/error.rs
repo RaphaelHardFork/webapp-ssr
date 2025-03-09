@@ -1,22 +1,14 @@
-use crate::web;
 use derive_more::From;
-use lib_core::model;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, From)]
 pub enum Error {
-    // -- Modules
     #[from]
-    Web(web::Error),
-    #[from]
-    LibWeb(lib_web::Error),
+    Model(lib_core::model::Error),
 
-    // -- Externals
     #[from]
-    Model(model::Error),
-    #[from]
-    Core(lib_core::Error),
+    Utils(lib_utils::time::Error),
 }
 
 // region:    --- Error Boilerplate

@@ -1,22 +1,17 @@
-use crate::web;
-use derive_more::From;
-use lib_core::model;
+use serde::Serialize;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-#[derive(Debug, From)]
+#[derive(Debug, Serialize)]
 pub enum Error {
-    // -- Modules
-    #[from]
-    Web(web::Error),
-    #[from]
-    LibWeb(lib_web::Error),
-
-    // -- Externals
-    #[from]
-    Model(model::Error),
-    #[from]
-    Core(lib_core::Error),
+    HmacFailNewFromSlice,
+    CannotParseUuid,
+    InvalidFormat,
+    CannotDecodeIdent,
+    CannotDecodeExp,
+    SignatureNotMatching,
+    ExpNotIso,
+    Expired,
 }
 
 // region:    --- Error Boilerplate

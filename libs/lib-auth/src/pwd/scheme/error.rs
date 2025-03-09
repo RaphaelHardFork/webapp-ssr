@@ -1,26 +1,17 @@
-use crate::web;
-use derive_more::From;
-use lib_core::model;
+use serde::Serialize;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-#[derive(Debug, From)]
+#[derive(Debug, Serialize)]
 pub enum Error {
-    // -- Modules
-    #[from]
-    Web(web::Error),
-    #[from]
-    LibWeb(lib_web::Error),
-
-    // -- Externals
-    #[from]
-    Model(model::Error),
-    #[from]
-    Core(lib_core::Error),
+    Key,
+    Salt,
+    Hash,
+    PwdValidate,
+    SchemeNotFound(String),
 }
 
 // region:    --- Error Boilerplate
-
 impl core::fmt::Display for Error {
     fn fmt(&self, fmt: &mut core::fmt::Formatter) -> core::result::Result<(), core::fmt::Error> {
         write!(fmt, "{self:?}")
@@ -28,5 +19,4 @@ impl core::fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
-
 // endregion: --- Error Boilerplate

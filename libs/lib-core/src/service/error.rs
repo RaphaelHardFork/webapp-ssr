@@ -1,22 +1,20 @@
-use crate::web;
 use derive_more::From;
-use lib_core::model;
+use serde::Serialize;
+
+use crate::model;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-#[derive(Debug, From)]
+#[derive(Debug, From, Serialize)]
 pub enum Error {
-    // -- Modules
-    #[from]
-    Web(web::Error),
-    #[from]
-    LibWeb(lib_web::Error),
+    EmptyLoginPayload,
 
-    // -- Externals
     #[from]
     Model(model::Error),
     #[from]
-    Core(lib_core::Error),
+    Pwd(lib_auth::pwd::Error),
+    #[from]
+    Token(lib_auth::token::Error),
 }
 
 // region:    --- Error Boilerplate

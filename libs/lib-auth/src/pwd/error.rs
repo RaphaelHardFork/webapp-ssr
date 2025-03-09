@@ -1,22 +1,17 @@
-use crate::web;
+use super::scheme;
 use derive_more::From;
-use lib_core::model;
+use serde::Serialize;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-#[derive(Debug, From)]
+#[derive(Debug, Serialize, From)]
 pub enum Error {
-    // -- Modules
-    #[from]
-    Web(web::Error),
-    #[from]
-    LibWeb(lib_web::Error),
+    PwdWithSchemeFailedParse,
+    FailSpawnBlockForValidate,
+    FailSpawnBlockForHash,
 
-    // -- Externals
     #[from]
-    Model(model::Error),
-    #[from]
-    Core(lib_core::Error),
+    Scheme(scheme::Error),
 }
 
 // region:    --- Error Boilerplate
